@@ -77,6 +77,8 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     { data: endingSoon },
     { data: chartEntries },
     { data: chartExpenses },
+    { data: monthCaucao },
+    { data: chartCaucao },
   ] = await Promise.all([
     supabase.from('profiles').select('first_name').eq('id', user.id).single(),
 
@@ -123,19 +125,37 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .eq('owner_id', user.id)
       .gte('date', chartStart)
       .lte('date', chartEnd),
+
+    // Caução: contratos novos (não renovações) com start_date no mês selecionado
+    supabase.from('contracts')
+      .select('guarantee_amount, start_date')
+      .gte('start_date', firstDay)
+      .lte('start_date', lastDay)
+      .gt('guarantee_amount', 0)
+      .eq('is_renewal', false),
+
+    // Caução para o gráfico (últimos 6 meses, excluindo renovações)
+    supabase.from('contracts')
+      .select('guarantee_amount, start_date')
+      .gte('start_date', chartStart)
+      .lte('start_date', chartEnd)
+      .gt('guarantee_amount', 0)
+      .eq('is_renewal', false),
   ])
 
   // Cálculos financeiros do mês selecionado
   const entries = (monthEntries ?? []) as EntryWithContract[]
   const paid = entries.filter(e => e.is_paid)
   const pending = entries.filter(e => !e.is_paid)
-  const totalReceived = paid.reduce((s, e) => s + calcTotal(e), 0)
+  const totalRent = paid.reduce((s, e) => s + calcTotal(e), 0)
+  const totalCaucao = (monthCaucao ?? []).reduce((s, c) => s + (c.guarantee_amount ?? 0), 0)
+  const totalReceived = totalRent + totalCaucao
   const totalPending = pending.reduce((s, e) => s + calcTotal(e), 0)
   const totalExpenses = (monthExpenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
   const netProfit = totalReceived - totalExpenses
   const vacantProperties = (totalProperties ?? 0) - (activeContracts ?? 0)
 
-  // Dados do gráfico
+  // Dados do gráfico (caução somada ao Recebido)
   const chartData: ChartMonth[] = chartMonths.map(({ year: y, month: m }) => {
     const start = `${y}-${pad(m)}-01`
     const end = `${y}-${pad(m)}-${lastDayOf(y, m)}`
@@ -144,8 +164,11 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .filter(e => e.due_date >= start && e.due_date <= end)
     const mExpenses = (chartExpenses ?? [])
       .filter((e: { date: string; amount: number }) => e.date >= start && e.date <= end)
+    const mCaucao = (chartCaucao ?? [])
+      .filter((c: { start_date: string; guarantee_amount: number }) => c.start_date >= start && c.start_date <= end)
 
     const received = mEntries.reduce((s, e) => s + calcTotal(e), 0)
+      + mCaucao.reduce((s: number, c: { start_date: string; guarantee_amount: number }) => s + (c.guarantee_amount ?? 0), 0)
     const expenses = mExpenses.reduce((s: number, e: { date: string; amount: number }) => s + (e.amount ?? 0), 0)
 
     const label = new Date(y, m - 1, 1).toLocaleString('pt-BR', { month: 'short' })
@@ -190,7 +213,9 @@ async function DashboardContent({ month, year }: { month: number; year: number }
           <div className="rounded-lg border border-emerald-900/50 bg-emerald-900/10 p-5">
             <p className="text-xs text-emerald-400">Recebido</p>
             <p className="mt-2 text-2xl font-bold text-emerald-300">{fmt(totalReceived)}</p>
-            <p className="mt-1 text-xs text-slate-500">{paid.length} pago(s)</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {paid.length} pago(s){totalCaucao > 0 ? ` · caução incluída` : ''}
+            </p>
           </div>
           <div className="rounded-lg border border-rose-900/50 bg-rose-900/10 p-5">
             <p className="text-xs text-rose-400">Despesas</p>

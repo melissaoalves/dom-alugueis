@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { UserCircle } from 'lucide-react'
+import { MobileNav } from '@/src/features/dashboard/components/MobileNav'
 
 export default function DashboardLayout({
   children,
@@ -13,15 +15,16 @@ export default function DashboardLayout({
         <div className="absolute bottom-0 right-0 h-100 w-100 rounded-full bg-cyan-600/10 blur-[100px]" />
       </div>
 
-      {/* Navbar Glass */}
+      {/* Navbar — desktop */}
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/50 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
             <Link href="/">
-              <h1 className="bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-2xl font-black text-transparent hover:opacity-80 transition-opacity">
+              <h1 className="bg-linear-to-r from-indigo-400 to-cyan-400 bg-clip-text text-xl font-black text-transparent transition-opacity hover:opacity-80 sm:text-2xl">
                 DOM ALUGUÉIS
               </h1>
             </Link>
+            {/* Links apenas no desktop */}
             <div className="hidden md:flex gap-6">
               <Link href="/dashboard" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Visão Geral</Link>
               <Link href="/dashboard/properties" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Imóveis</Link>
@@ -31,13 +34,25 @@ export default function DashboardLayout({
               <Link href="/dashboard/finance/expenses" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Despesas</Link>
             </div>
           </div>
+
+          {/* Ícone de perfil — desktop */}
+          <Link
+            href="/dashboard/profile"
+            title="Meu perfil"
+            className="hidden md:flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-slate-400 transition hover:border-slate-500 hover:text-white"
+          >
+            <UserCircle size={18} />
+          </Link>
         </div>
       </nav>
 
-      {/* Main Content */}
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      {/* Main Content — pb-20 no mobile para não sobrepor a bottom nav */}
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-8 pb-24 sm:px-6 sm:py-12 sm:pb-12 lg:px-8">
         {children}
       </main>
+
+      {/* Bottom nav — apenas mobile */}
+      <MobileNav />
     </div>
   )
 }

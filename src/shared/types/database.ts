@@ -62,6 +62,7 @@ export interface Contract {
   due_day?: number
   is_active: boolean
   status: 'ativo' | 'rescindido'
+  is_renewal: boolean
 }
 
 export interface Expense {

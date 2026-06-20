@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { Pencil, X } from 'lucide-react'
 import { updateMonthlyEntry, calcLateFees } from '../services/monthlyEntriesService'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+
+const inputClass = "h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600"
 
 interface Props {
   entry: any
@@ -20,7 +23,6 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const rentValue = contract?.rent_value ?? 0
   const penaltyRate = contract?.penalty_fee ?? 0
   const interestRate = contract?.interest_rate ?? 0
-
   const waterBilling = contract?.water_billing_type ?? 'not_included'
   const energyBilling = contract?.energy_billing_type ?? 'not_included'
 
@@ -37,39 +39,36 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
     entry.payment_date ?? new Date().toISOString().split('T')[0]
   )
 
-  // Juros/multa calculados com base na data de pagamento selecionada
   const { penalty, interest, daysLate } = entry.is_paid
     ? { penalty: 0, interest: 0, daysLate: 0 }
     : calcLateFees(entry.due_date, rentValue, penaltyRate, interestRate, paymentDate)
 
   const isLate = !entry.is_paid && daysLate > 0
 
-  // Usa || em vez de ?? para que 0 também caia no fallback do contrato
-  const waterFixed = waterBilling === 'fixed'
-    ? (entry.water_amount || contract?.water_value || 0)
-    : 0
-  const energyFixed = energyBilling === 'fixed'
-    ? (entry.energy_amount || contract?.energy_value || 0)
-    : 0
+  const waterFixed = waterBilling === 'fixed' ? (entry.water_amount || contract?.water_value || 0) : 0
+  const energyFixed = energyBilling === 'fixed' ? (entry.energy_amount || contract?.energy_value || 0) : 0
   const waterConsumption = waterBilling === 'consumption' ? (Number(water) || 0) : 0
   const energyConsumption = energyBilling === 'consumption' ? (Number(energy) || 0) : 0
-
   const totalValue = rentValue + waterFixed + energyFixed + waterConsumption + energyConsumption +
     (Number(extra) || 0) + (entry.is_paid ? 0 : penalty + interest)
 
-  const handleSave = async (markPaid = false) => {
+  const handleSave = async (action: 'draft' | 'paid' | 'unpay') => {
     setSaving(true)
     try {
-      await updateMonthlyEntry(entry.id, {
-        water_amount: waterBilling === 'consumption' && water !== '' ? Number(water) : undefined,
-        energy_amount: energyBilling === 'consumption' && energy !== '' ? Number(energy) : undefined,
-        extra_amount: extra !== '' ? Number(extra) : undefined,
-        extra_description: extraDesc || undefined,
-        notes: notes || undefined,
-        ...(markPaid && { is_paid: true, payment_date: paymentDate }),
-      })
+      if (action === 'unpay') {
+        await updateMonthlyEntry(entry.id, { is_paid: false, payment_date: null })
+      } else {
+        await updateMonthlyEntry(entry.id, {
+          water_amount: waterBilling === 'consumption' && water !== '' ? Number(water) : undefined,
+          energy_amount: energyBilling === 'consumption' && energy !== '' ? Number(energy) : undefined,
+          extra_amount: extra !== '' ? Number(extra) : undefined,
+          extra_description: extraDesc || undefined,
+          notes: notes || undefined,
+          ...(action === 'paid' && { is_paid: true, payment_date: paymentDate }),
+        })
+      }
       onUpdate()
-      if (!markPaid) setExpanded(false)
+      setExpanded(false)
     } finally {
       setSaving(false)
     }
@@ -80,7 +79,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
       entry.is_paid ? 'border-emerald-900/50' :
       isLate ? 'border-rose-900/50' : 'border-slate-800'
     }`}>
-      {/* Cabeçalho sempre visível */}
+      {/* Cabeçalho */}
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -94,25 +93,29 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
               entry.is_paid ? 'bg-emerald-900/40 text-emerald-400' :
               isLate ? 'bg-rose-900/40 text-rose-400' : 'bg-yellow-900/40 text-yellow-400'
             }`}>
               {entry.is_paid ? 'Pago' : isLate ? `${daysLate}d atraso` : 'Pendente'}
             </span>
-            {!entry.is_paid && (
-              <button
-                onClick={() => setExpanded(v => !v)}
-                className="text-xs text-slate-400 hover:text-white transition-colors"
-              >
-                {expanded ? 'Fechar' : 'Lançar'}
-              </button>
-            )}
+
+            <button
+              onClick={() => setExpanded(v => !v)}
+              title={expanded ? 'Fechar' : 'Editar lançamento'}
+              className={`flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
+                expanded
+                  ? 'border-slate-600 text-white'
+                  : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-white'
+              }`}
+            >
+              {expanded ? <X size={13} /> : <Pencil size={13} />}
+            </button>
           </div>
         </div>
 
-        {/* Composição do valor — sempre visível */}
+        {/* Composição do valor */}
         <div className="mt-3 space-y-1 border-t border-slate-800 pt-3 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-400">Aluguel</span>
@@ -164,8 +167,8 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
         </div>
       </div>
 
-      {/* Painel de lançamento */}
-      {expanded && !entry.is_paid && (
+      {/* Painel de edição */}
+      {expanded && (
         <div className="space-y-4 border-t border-slate-800 p-4">
           {isLate && (
             <div className="rounded-md border border-rose-900/50 bg-rose-900/20 p-3 text-sm">
@@ -177,56 +180,42 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             </div>
           )}
 
-          {/* Campos de consumo variável */}
           {(waterBilling === 'consumption' || energyBilling === 'consumption') && (
             <div className="grid grid-cols-2 gap-3">
               {waterBilling === 'consumption' && (
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-400">Água — consumo (R$)</label>
-                  <input type="number" step="0.01" value={water} onChange={e => setWater(e.target.value)}
-                    placeholder="0,00"
-                    className="h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600" />
+                  <input type="number" step="0.01" value={water} onChange={e => setWater(e.target.value)} placeholder="0,00" className={inputClass} />
                 </div>
               )}
               {energyBilling === 'consumption' && (
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-400">Energia — consumo (R$)</label>
-                  <input type="number" step="0.01" value={energy} onChange={e => setEnergy(e.target.value)}
-                    placeholder="0,00"
-                    className="h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600" />
+                  <input type="number" step="0.01" value={energy} onChange={e => setEnergy(e.target.value)} placeholder="0,00" className={inputClass} />
                 </div>
               )}
             </div>
           )}
 
-          {/* Extra */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-400">Extra (R$)</label>
-              <input type="number" step="0.01" value={extra} onChange={e => setExtra(e.target.value)}
-                placeholder="0,00"
-                className="h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600" />
+              <input type="number" step="0.01" value={extra} onChange={e => setExtra(e.target.value)} placeholder="0,00" className={inputClass} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-400">Descrição do extra</label>
-              <input type="text" value={extraDesc} onChange={e => setExtraDesc(e.target.value)}
-                placeholder="Ex: limpeza"
-                className="h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600" />
+              <input type="text" value={extraDesc} onChange={e => setExtraDesc(e.target.value)} placeholder="Ex: limpeza" className={inputClass} />
             </div>
           </div>
 
-          {/* Data de pagamento + observações */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-400">Data do pagamento</label>
-              <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-                className="h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-600" />
+              <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className={inputClass} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-400">Observações</label>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-                placeholder="Anotações opcionais..."
-                className="h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600" />
+              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anotações opcionais..." className={inputClass} />
             </div>
           </div>
 
@@ -235,20 +224,35 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
               Total: <span className="font-semibold text-white">{fmt(totalValue)}</span>
             </p>
             <div className="flex gap-2">
-              <button onClick={() => handleSave(false)} disabled={saving}
-                className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:text-white disabled:opacity-50">
-                Salvar rascunho
-              </button>
-              <button onClick={() => handleSave(true)} disabled={saving}
-                className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-600 disabled:opacity-50">
-                {saving ? 'Salvando...' : 'Marcar como Pago'}
-              </button>
+              {entry.is_paid ? (
+                <>
+                  <button onClick={() => handleSave('unpay')} disabled={saving}
+                    className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition hover:border-rose-900/50 hover:text-rose-400 disabled:opacity-50">
+                    Desfazer pagamento
+                  </button>
+                  <button onClick={() => handleSave('draft')} disabled={saving}
+                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50">
+                    {saving ? 'Salvando...' : 'Salvar alterações'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => handleSave('draft')} disabled={saving}
+                    className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:text-white disabled:opacity-50">
+                    Salvar rascunho
+                  </button>
+                  <button onClick={() => handleSave('paid')} disabled={saving}
+                    className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-600 disabled:opacity-50">
+                    {saving ? 'Salvando...' : 'Marcar como Pago'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {entry.is_paid && (
+      {entry.is_paid && !expanded && (
         <div className="border-t border-slate-800 px-4 py-2 text-xs text-slate-500">
           Pago em {entry.payment_date
             ? new Date(entry.payment_date + 'T00:00:00').toLocaleDateString('pt-BR')

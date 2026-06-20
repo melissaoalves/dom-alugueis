@@ -43,6 +43,7 @@ export function ContractForm({ initialData }: ContractFormProps) {
   const endDate = startDate ? addMonths(startDate, durationMonths) : ''
   const [waterBillingType, setWaterBillingType] = useState<string>(initialData?.water_billing_type ?? 'not_included')
   const [energyBillingType, setEnergyBillingType] = useState<string>(initialData?.energy_billing_type ?? 'not_included')
+  const [isRenewal, setIsRenewal] = useState(initialData?.is_renewal ?? false)
 
   useEffect(() => {
     async function loadData() {
@@ -83,6 +84,7 @@ export function ContractForm({ initialData }: ContractFormProps) {
         due_day: formData.get('due_day') ? Number(formData.get('due_day')) : undefined,
         status: (initialData?.status === 'rescindido' ? 'rescindido' : 'ativo') as 'ativo' | 'rescindido',
         is_active: initialData?.status !== 'rescindido',
+        is_renewal: isRenewal,
       }
 
       if (initialData) {
@@ -286,6 +288,25 @@ export function ContractForm({ initialData }: ContractFormProps) {
           </div>
         </div>
       </div>
+
+        {/* Renovação */}
+        <div className="flex items-start gap-3 border-t border-slate-800 pt-4">
+          <input
+            type="checkbox"
+            id="is_renewal"
+            checked={isRenewal}
+            onChange={e => setIsRenewal(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-700 accent-indigo-600"
+          />
+          <div>
+            <label htmlFor="is_renewal" className="text-sm font-medium text-slate-300 cursor-pointer">
+              Este contrato é uma renovação
+            </label>
+            <p className="mt-0.5 text-xs text-slate-500">
+              A caução não será contabilizada como receita caso marcado.
+            </p>
+          </div>
+        </div>
 
       <div className="flex justify-end gap-3 border-t border-slate-800 pt-6">
         <Button type="button" variant="outline" className="border-slate-700 text-slate-300 hover:text-white" onClick={() => router.back()}>

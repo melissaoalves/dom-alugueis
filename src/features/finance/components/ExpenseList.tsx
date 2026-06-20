@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
 import { getExpenses, deleteExpense } from '../services/expensesService'
+import { ExpenseCategoryChart } from './ExpenseCategoryChart'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -46,7 +47,6 @@ export function ExpenseList() {
     }
   }
 
-  const total = expenses.reduce((s, e) => s + e.amount, 0)
 
   return (
     <div className="space-y-6">
@@ -84,10 +84,7 @@ export function ExpenseList() {
       )}
 
       {expenses.length > 0 && (
-        <div className="rounded-lg border border-rose-900/50 bg-rose-900/20 p-4">
-          <p className="text-xs text-rose-400">Total de despesas — {MONTHS[month - 1]} {year}</p>
-          <p className="mt-1 text-xl font-bold text-rose-300">{fmt(total)}</p>
-        </div>
+        <ExpenseCategoryChart expenses={expenses} />
       )}
 
       {loading ? (

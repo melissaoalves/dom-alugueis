@@ -121,7 +121,7 @@ export async function generateMonthEntries(referenceMonth: string): Promise<{ to
 
 export async function updateMonthlyEntry(
   id: string,
-  payload: Partial<Pick<MonthlyEntry, 'is_paid' | 'payment_date' | 'water_amount' | 'energy_amount' | 'extra_amount' | 'extra_description' | 'notes'>>
+  payload: Partial<Pick<MonthlyEntry, 'is_paid' | 'water_amount' | 'energy_amount' | 'extra_amount' | 'extra_description' | 'notes'>> & { payment_date?: string | null }
 ) {
   const supabase = createClient()
 

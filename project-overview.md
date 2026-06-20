@@ -57,3 +57,10 @@ O desenvolvimento do DOM Aluguéis será dividido em fases modulares focadas em 
 - Geração automática de contratos em PDF.
 - Exportação de relatórios (CSV/PDF).
 - Histórico de pagamentos por inquilino.
+- **Renovação rápida de contrato**:
+  - Quando um contrato estiver vencendo (alerta já existe no dashboard), exibir botão "Renovar Contrato".
+  - Abre o formulário de novo contrato pré-preenchido com todos os dados do contrato atual (imóvel, inquilino, valores, billing types, cláusulas).
+  - Proprietário ajusta apenas o que mudou (valor, prazo, caução, etc.) e confirma.
+  - Cria um contrato novo do zero — o antigo permanece no histórico como vencido/encerrado.
+  - O novo contrato já vem com `is_renewal: true` marcado automaticamente (sem cobrança de caução duplicada no dashboard).
+  - Implementar na página de edição do contrato vencido e/ou no alerta do dashboard.
