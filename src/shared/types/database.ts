@@ -83,6 +83,7 @@ export interface MonthlyEntry {
   contract_id: string
   reference_month: string  // primeiro dia do mês referência ex: 2026-06-01
   due_date: string
+  rent_value: number
   water_amount?: number
   energy_amount?: number
   extra_amount?: number

@@ -19,6 +19,7 @@ function lastDayOf(year: number, month: number) {
 interface EntryWithContract {
   is_paid: boolean
   due_date: string
+  rent_value?: number | null
   water_amount: number | null
   energy_amount: number | null
   extra_amount: number | null
@@ -34,7 +35,7 @@ interface EntryWithContract {
 
 function calcTotal(e: EntryWithContract): number {
   const c = e.contract
-  const rent = c?.rent_value ?? 0
+  const rent = e.rent_value !== undefined && e.rent_value !== null ? e.rent_value : (c?.rent_value ?? 0)
   const wb = c?.water_billing_type ?? 'not_included'
   const eb = c?.energy_billing_type ?? 'not_included'
   const water = wb === 'fixed' ? (e.water_amount || c?.water_value || 0)
@@ -83,7 +84,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     supabase.from('profiles').select('first_name').eq('id', user.id).single(),
 
     supabase.from('monthly_entries')
-      .select('is_paid, due_date, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('is_paid, due_date, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .gte('due_date', firstDay)
       .lte('due_date', lastDay),
@@ -99,7 +100,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
 
     supabase.from('monthly_entries')
-      .select('id, due_date, water_amount, energy_amount, extra_amount, property:properties(title), contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('id, due_date, rent_value, water_amount, energy_amount, extra_amount, property:properties(title), contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .eq('is_paid', false)
       .lt('due_date', today)
@@ -114,7 +115,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .order('end_date', { ascending: true }),
 
     supabase.from('monthly_entries')
-      .select('due_date, is_paid, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('due_date, is_paid, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .eq('is_paid', true)
       .gte('due_date', chartStart)

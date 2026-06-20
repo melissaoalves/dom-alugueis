@@ -64,3 +64,9 @@ O desenvolvimento do DOM Aluguéis será dividido em fases modulares focadas em 
   - Cria um contrato novo do zero — o antigo permanece no histórico como vencido/encerrado.
   - O novo contrato já vem com `is_renewal: true` marcado automaticamente (sem cobrança de caução duplicada no dashboard).
   - Implementar na página de edição do contrato vencido e/ou no alerta do dashboard.
+- **Fluxo de Rescisão e Fechamento Financeiro**:
+  - Cadastro de regras de multa rescisória no contrato (`penalty_type`: `'fixed'` (meses fixos), `'proportional'` (proporcional por lei), `'custom'` (valor personalizado), `'none'`).
+  - Modal interativo de rescisão que calcula o valor da multa automaticamente e exibe campo editável para o proprietário ajustar se necessário.
+  - Opção de gerar mensalidade proporcional de saída (pro-rata até o dia da rescisão).
+  - Acerto do caução original (descontando multas, avarias ou reparos) exibindo saldo final.
+  - Geração automática de mensalidade de encerramento no ato de confirmação da rescisão.

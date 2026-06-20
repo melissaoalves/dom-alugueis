@@ -77,7 +77,7 @@ export async function generateMonthEntries(referenceMonth: string): Promise<{ to
 
   const { data: contracts, error } = await supabase
     .from('contracts')
-    .select('id, property_id, due_day, water_value, energy_value')
+    .select('id, property_id, due_day, rent_value, water_value, energy_value, water_billing_type, energy_billing_type, start_date, end_date')
     .eq('is_active', true)
     .in('property_id', propertyIds)
     .lte('start_date', lastDayOfRef)
@@ -85,18 +85,50 @@ export async function generateMonthEntries(referenceMonth: string): Promise<{ to
   if (error) throw new Error(`Erro ao buscar contratos: ${error.message}`)
   if (!contracts || contracts.length === 0) throw new Error('Nenhum contrato ativo encontrado para o período.')
 
+  // Filtra apenas contratos que não venceram antes do fim do mês de referência.
+  // O contrato deve estar ativo até pelo menos o último dia do mês de referência (lastDayOfRef).
+  const activeContracts = contracts.filter((c: any) => {
+    if (!c.end_date) return true
+    return c.end_date >= lastDayOfRef
+  })
+
+  if (activeContracts.length === 0) throw new Error('Nenhum contrato ativo encontrado para o período.')
+
   // due_date = mês seguinte ao referenceMonth, no dia due_day do contrato
   const dueMonthNum = refMonthNum === 12 ? 1 : refMonthNum + 1
   const dueYearNum = refMonthNum === 12 ? refYear + 1 : refYear
 
-  const entries = contracts.map((c: any) => {
+  const entries = activeContracts.map((c: any) => {
     const lastDayDue = new Date(dueYearNum, dueMonthNum, 0).getDate()
     const dueDay = Math.min(c.due_day ?? 10, lastDayDue)
     const dueDateStr = `${dueYearNum}-${String(dueMonthNum).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`
 
     // Pré-preenche valores fixos do contrato; consumo fica null (proprietário preenche depois)
-    const waterAmount = c.water_billing_type === 'fixed' ? (c.water_value ?? null) : null
-    const energyAmount = c.energy_billing_type === 'fixed' ? (c.energy_value ?? null) : null
+    let waterAmount = c.water_billing_type === 'fixed' ? (c.water_value ?? null) : null
+    let energyAmount = c.energy_billing_type === 'fixed' ? (c.energy_value ?? null) : null
+
+    // Calcula aluguel proporcional se o contrato iniciou no meio do mês de referência
+    let rentValue = Number(c.rent_value)
+    if (isNaN(rentValue)) rentValue = 0
+
+    if (c.start_date && c.start_date > referenceMonth) {
+      const [startYear, startMonth, startDay] = c.start_date.split('-').map(Number)
+      if (startYear === refYear && startMonth === refMonthNum) {
+        const daysOccupied = lastDayNum - startDay + 1
+        if (daysOccupied < lastDayNum && daysOccupied > 0) {
+          // Proporcional do aluguel
+          rentValue = Number(((rentValue / lastDayNum) * daysOccupied).toFixed(2))
+
+          // Proporcional das taxas fixas de água/energia
+          if (waterAmount !== null) {
+            waterAmount = Number(((waterAmount / lastDayNum) * daysOccupied).toFixed(2))
+          }
+          if (energyAmount !== null) {
+            energyAmount = Number(((energyAmount / lastDayNum) * daysOccupied).toFixed(2))
+          }
+        }
+      }
+    }
 
     return {
       contract_id: c.id,
@@ -104,6 +136,7 @@ export async function generateMonthEntries(referenceMonth: string): Promise<{ to
       owner_id: user.id,
       reference_month: referenceMonth,
       due_date: dueDateStr,
+      rent_value: rentValue,
       water_amount: waterAmount,
       energy_amount: energyAmount,
       is_paid: false,
@@ -116,7 +149,7 @@ export async function generateMonthEntries(referenceMonth: string): Promise<{ to
     .select()
 
   if (insertError) throw new Error(insertError.message)
-  return { total: contracts.length, created: data?.length ?? 0 }
+  return { total: activeContracts.length, created: data?.length ?? 0 }
 }
 
 export async function updateMonthlyEntry(

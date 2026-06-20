@@ -20,7 +20,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
 
   const contract = entry.contract
   const property = entry.property
-  const rentValue = contract?.rent_value ?? 0
+  const rentValue = entry.rent_value !== undefined && entry.rent_value !== null ? entry.rent_value : (contract?.rent_value ?? 0)
   const penaltyRate = contract?.penalty_fee ?? 0
   const interestRate = contract?.interest_rate ?? 0
   const waterBilling = contract?.water_billing_type ?? 'not_included'
