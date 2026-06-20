@@ -144,7 +144,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
   ])
 
   // Cálculos financeiros do mês selecionado
-  const entries = (monthEntries ?? []) as EntryWithContract[]
+  const entries = (monthEntries ?? []) as unknown as EntryWithContract[]
   const paid = entries.filter(e => e.is_paid)
   const pending = entries.filter(e => !e.is_paid)
   const totalRent = paid.reduce((s, e) => s + calcTotal(e), 0)
@@ -160,7 +160,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     const start = `${y}-${pad(m)}-01`
     const end = `${y}-${pad(m)}-${lastDayOf(y, m)}`
 
-    const mEntries = ((chartEntries ?? []) as EntryWithContract[])
+    const mEntries = ((chartEntries ?? []) as unknown as EntryWithContract[])
       .filter(e => e.due_date >= start && e.due_date <= end)
     const mExpenses = (chartExpenses ?? [])
       .filter((e: { date: string; amount: number }) => e.date >= start && e.date <= end)
@@ -275,7 +275,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
               <div className="rounded-lg border border-rose-900/50 bg-rose-900/10 p-5">
                 <p className="mb-3 text-sm font-semibold text-rose-400">{overdueEntries.length} cobrança(s) em atraso</p>
                 <div className="space-y-2">
-                  {(overdueEntries as EntryWithContract[]).map((e, i) => {
+                  {(overdueEntries as unknown as EntryWithContract[]).map((e, i) => {
                     const total = calcTotal(e)
                     const due = new Date(e.due_date + 'T00:00:00')
                     const days = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
@@ -298,7 +298,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
               <div className="rounded-lg border border-amber-900/50 bg-amber-900/10 p-5">
                 <p className="mb-3 text-sm font-semibold text-amber-400">{endingSoon.length} contrato(s) encerrando em 60 dias</p>
                 <div className="space-y-2">
-                  {(endingSoon as { id: string; end_date: string; property: { title: string } | null; tenant: { full_name: string } | null }[]).map((c) => {
+                  {(endingSoon as unknown as { id: string; end_date: string; property: { title: string } | null; tenant: { full_name: string } | null }[]).map((c) => {
                     const end = new Date(c.end_date + 'T00:00:00')
                     const days = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
                     return (
