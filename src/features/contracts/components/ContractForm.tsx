@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createContract, updateContract } from '../services/contractsService'
 import { getProperties } from '@/src/features/properties/services/propertiesService'
 import { getTenants } from '@/src/features/tenants/services/tenantsService'
-import { Property, Tenant, Contract } from '@/src/shared/types/database'
+import { Property, Tenant, Contract, PaymentMethod, PAYMENT_METHOD_LABELS } from '@/src/shared/types/database'
 import { Button } from '@/src/shared/components/ui/Button'
 import { Input } from '@/src/shared/components/ui/Input'
 
@@ -44,6 +44,17 @@ export function ContractForm({ initialData }: ContractFormProps) {
   const [waterBillingType, setWaterBillingType] = useState<string>(initialData?.water_billing_type ?? 'not_included')
   const [energyBillingType, setEnergyBillingType] = useState<string>(initialData?.energy_billing_type ?? 'not_included')
   const [isRenewal, setIsRenewal] = useState(initialData?.is_renewal ?? false)
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(
+    initialData?.payment_methods ?? []
+  )
+
+  function togglePaymentMethod(method: PaymentMethod) {
+    setPaymentMethods(prev =>
+      prev.includes(method) ? prev.filter(m => m !== method) : [...prev, method]
+    )
+  }
+  const [penaltyType, setPenaltyType] = useState<string>(initialData?.rescission_penalty_type ?? 'none')
+  const [fixedMonths, setFixedMonths] = useState(initialData?.rescission_fixed_months ?? 3)
 
   useEffect(() => {
     async function loadData() {
@@ -82,9 +93,19 @@ export function ContractForm({ initialData }: ContractFormProps) {
         interest_rate: formData.get('interest_rate') ? Number(formData.get('interest_rate')) : undefined,
         penalty_fee: formData.get('penalty_fee') ? Number(formData.get('penalty_fee')) : undefined,
         due_day: formData.get('due_day') ? Number(formData.get('due_day')) : undefined,
+        duration_months: durationMonths,
+        payment_methods: paymentMethods.length > 0 ? paymentMethods : undefined,
+        annual_adjustment_rate: formData.get('annual_adjustment_rate') ? Number(formData.get('annual_adjustment_rate')) : undefined,
+        general_infraction_penalty: (formData.get('general_infraction_penalty') as string) || undefined,
+        pix_key_guarantee: (formData.get('pix_key_guarantee') as string) || undefined,
+        forum_city: (formData.get('forum_city') as string) || undefined,
+        forum_state: (formData.get('forum_state') as string) || undefined,
+        property_destination: ((formData.get('property_destination') as string) || 'residencial') as 'residencial' | 'comercial',
         status: (initialData?.status === 'rescindido' ? 'rescindido' : 'ativo') as 'ativo' | 'rescindido',
         is_active: initialData?.status !== 'rescindido',
         is_renewal: isRenewal,
+        rescission_penalty_type: penaltyType as 'none' | 'fixed_months' | 'custom',
+        rescission_fixed_months: penaltyType === 'fixed_months' ? fixedMonths : undefined,
       }
 
       if (initialData) {
@@ -288,6 +309,98 @@ export function ContractForm({ initialData }: ContractFormProps) {
           </div>
         </div>
       </div>
+
+        {/* Condições e pagamento */}
+        <div className="space-y-4 border-t border-slate-800 pt-4">
+          <h3 className="text-sm font-semibold text-slate-300">Condições e pagamento</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Formas de pagamento aceitas</label>
+              <div className="mt-1 space-y-2">
+                {(Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethod, string][]).map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      checked={paymentMethods.includes(value)}
+                      onChange={() => togglePaymentMethod(value)}
+                      className="accent-indigo-600 h-4 w-4"
+                    />
+                    <span className="text-slate-300">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label htmlFor="annual_adjustment_rate" className={labelClass}>Reajuste anual (%)</label>
+              <Input id="annual_adjustment_rate" name="annual_adjustment_rate" type="number" step="0.01" defaultValue={initialData?.annual_adjustment_rate} placeholder="Ex: 10" className={inputClass} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="pix_key_guarantee" className={labelClass}>Chave Pix (caução)</label>
+              <Input id="pix_key_guarantee" name="pix_key_guarantee" defaultValue={initialData?.pix_key_guarantee} placeholder="Ex: email@email.com" className={inputClass} />
+            </div>
+            <div>
+              <label htmlFor="general_infraction_penalty" className={labelClass}>Multa por infração geral</label>
+              <Input id="general_infraction_penalty" name="general_infraction_penalty" defaultValue={initialData?.general_infraction_penalty} placeholder="Ex: 1 mês de aluguel" className={inputClass} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-1">
+              <label htmlFor="property_destination" className={labelClass}>Destinação do imóvel</label>
+              <select id="property_destination" name="property_destination" defaultValue={initialData?.property_destination ?? 'residencial'} className={selectClass}>
+                <option value="residencial">Residencial</option>
+                <option value="comercial">Comercial</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="forum_city" className={labelClass}>Foro — cidade</label>
+              <Input id="forum_city" name="forum_city" defaultValue={initialData?.forum_city} placeholder="Ex: Tauá" className={inputClass} />
+            </div>
+            <div>
+              <label htmlFor="forum_state" className={labelClass}>Foro — UF</label>
+              <Input id="forum_state" name="forum_state" defaultValue={initialData?.forum_state} placeholder="Ex: CE" className={inputClass} />
+            </div>
+          </div>
+        </div>
+
+        {/* Multa rescisória */}
+        <div className="space-y-3 border-t border-slate-800 pt-4">
+          <h3 className="text-sm font-semibold text-slate-300">Multa rescisória</h3>
+          <p className="text-xs text-slate-500">Define como a multa é calculada caso o contrato seja rescindido antes do prazo.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="rescission_penalty_type" className={labelClass}>Tipo de multa</label>
+              <select
+                id="rescission_penalty_type"
+                value={penaltyType}
+                onChange={e => setPenaltyType(e.target.value)}
+                className={selectClass}
+              >
+                <option value="none">Sem multa</option>
+                <option value="fixed_months">Meses fixos de aluguel</option>
+                <option value="custom">Valor definido na rescisão</option>
+              </select>
+            </div>
+            {penaltyType === 'fixed_months' && (
+              <div>
+                <label htmlFor="rescission_fixed_months" className={labelClass}>Quantidade de meses</label>
+                <input
+                  id="rescission_fixed_months"
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={fixedMonths}
+                  onChange={e => setFixedMonths(Number(e.target.value))}
+                  className="h-10 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Multa = {fixedMonths}× o valor do aluguel
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Renovação */}
         <div className="flex items-start gap-3 border-t border-slate-800 pt-4">

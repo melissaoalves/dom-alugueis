@@ -91,12 +91,11 @@ export async function ContractList({ tenantId, propertyId }: ContractListProps =
                     <Pencil size={13} />
                   </Link>
                   {status === 'ativo' && (
-                    <ContractStatusButton
-                      contractId={contract.id}
-                      currentStatus={contract.status}
-                      propertyTitle={contract.property?.title ?? ''}
-                      tenantName={contract.tenant?.full_name ?? ''}
-                    />
+                    <ContractStatusButton contract={{
+                      ...contract,
+                      property: contract.property as { title: string } | null,
+                      tenant: contract.tenant as { full_name: string } | null,
+                    }} />
                   )}
                 </div>
               </div>

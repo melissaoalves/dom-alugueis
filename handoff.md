@@ -5,7 +5,7 @@ Este arquivo serve como um "ponto de save" do projeto. Ao iniciar uma nova sess�
 ---
 
 ## Status Atual
-**Fase 4 Concluída. Pronto para iniciar a Fase 5.**
+**Fase 5 Concluída. Pronto para iniciar a Fase 6.**
 
 ---
 
@@ -56,25 +56,21 @@ Este arquivo serve como um "ponto de save" do projeto. Ao iniciar uma nova sess�
 - Geração de cobranças por mês com pré-preenchimento de valores fixos
 - Cálculo de multa/juros pela data de pagamento selecionada
 - `ExpenseList` + `ExpenseForm` com 18 categorias
+- **Correção Matemática**: Ajustado `entryTotal` para priorizar `entry.rent_value` em vez do valor cheio do contrato, garantindo a exibição correta dos totais de valores proporcionais de rescisões na listagem.
+
+### `src/features/dashboard`
+- Painel principal (`app/dashboard/page.tsx`) integrado com Supabase.
+- Total a Receber, Recebido, Despesas e Lucro Líquido reais do mês selecionado.
+- Gráfico de histórico de 6 meses (Receitas vs Despesas) com suporte a caução.
+- Alertas dinâmicos de inadimplência (dias de atraso) e contratos terminando nos próximos 60 dias.
+- **Correção Matemática**: Ajustado `calcTotal` para priorizar `entry.rent_value` em vez do aluguel padrão do contrato, garantindo consistência com a tela de mensalidades.
 
 ---
 
-## Próximo Passo: Fase 5 — Dashboard e Métricas
+## Próximo Passo: Fase 6 — Polimento e Funcionalidades Extras
 
-O dashboard atual (`app/dashboard/page.tsx`) mostra cards zerados (0 imóveis, R$ 0,00). A Fase 5 deve:
+A Fase 6 deve implementar polimentos e recursos avançados conforme o planejado:
+1. **Geração de Contratos em PDF**: Exportação automatizada de contratos.
+2. **Renovação Rápida de Contrato**: A partir da tela de edição do contrato ou alertas do dashboard.
+3. **Refinamento da Rescisão**: Integração das regras de rescisão flexível (multas, devolução/saldo de caução e geração automática de cobrança proporcional de fechamento).
 
-1. **Buscar dados reais** do mês atual:
-   - Total a receber: soma dos `monthly_entries` pendentes do mês
-   - Total recebido: soma dos `monthly_entries` pagos do mês
-   - Total de despesas: soma das `expenses` do mês
-   - Lucro líquido: recebido - despesas
-
-2. **Métricas de portfólio**:
-   - Total de imóveis cadastrados
-   - Imóveis com contrato ativo vs. vagos
-
-3. **Alertas**:
-   - Cobranças vencidas (is_paid = false e due_date < hoje)
-   - Contratos terminando nos próximos 30/60 dias
-
-4. **Estilo**: manter o padrão dark (slate-950/slate-900/slate-800, indigo-600 para accent)

@@ -75,58 +75,113 @@ export async function generateMonthEntries(referenceMonth: string): Promise<{ to
   const lastDayNum = new Date(refYear, refMonthNum, 0).getDate()
   const lastDayOfRef = `${refYear}-${String(refMonthNum).padStart(2, '0')}-${lastDayNum}`
 
-  const { data: contracts, error } = await supabase
+  // 1. Contratos ATIVOS que cobrem o mês inteiro de referência
+  //    Só gera entrada se o contrato ainda estará ativo no último dia do mês
+  //    (end_date nulo = sem fim definido; end_date >= último dia = cobre o mês todo)
+  const { data: activeRaw, error } = await supabase
     .from('contracts')
-    .select('id, property_id, due_day, rent_value, water_value, energy_value, water_billing_type, energy_billing_type, start_date, end_date')
+    .select('id, property_id, due_day, rent_value, water_value, energy_value, water_billing_type, energy_billing_type, start_date, end_date, status, is_renewal')
     .eq('is_active', true)
+    .eq('status', 'ativo')
     .in('property_id', propertyIds)
     .lte('start_date', lastDayOfRef)
 
   if (error) throw new Error(`Erro ao buscar contratos: ${error.message}`)
-  if (!contracts || contracts.length === 0) throw new Error('Nenhum contrato ativo encontrado para o período.')
 
-  // Filtra apenas contratos que não venceram antes do fim do mês de referência.
-  // O contrato deve estar ativo até pelo menos o último dia do mês de referência (lastDayOfRef).
-  const activeContracts = contracts.filter((c: any) => {
-    if (!c.end_date) return true
-    return c.end_date >= lastDayOfRef
-  })
+  const activeContracts = (activeRaw ?? []).filter(
+    (c: any) => !c.end_date || c.end_date >= lastDayOfRef
+  )
 
-  if (activeContracts.length === 0) throw new Error('Nenhum contrato ativo encontrado para o período.')
+  // 2. Contratos RESCINDIDOS cujo end_date (data de rescisão) cai neste mês
+  //    e que ainda não têm entrada gerada para este mês
+  const { data: rescindedRaw } = await supabase
+    .from('contracts')
+    .select('id, property_id, due_day, rent_value, water_value, energy_value, water_billing_type, energy_billing_type, start_date, end_date, status, is_renewal')
+    .eq('status', 'rescindido')
+    .in('property_id', propertyIds)
+    .gte('end_date', referenceMonth)   // end_date >= primeiro dia do mês
+    .lte('end_date', lastDayOfRef)     // end_date <= último dia do mês
+
+  const rescindedIds = (rescindedRaw ?? []).map((c: any) => c.id)
+
+  // Filtra os que já têm lançamento neste mês para não duplicar
+  const existingEntryIds = new Set<string>()
+  if (rescindedIds.length > 0) {
+    const { data: existing } = await supabase
+      .from('monthly_entries')
+      .select('contract_id')
+      .eq('reference_month', referenceMonth)
+      .in('contract_id', rescindedIds)
+    ;(existing ?? []).forEach((e: any) => existingEntryIds.add(e.contract_id))
+  }
+
+  const rescindedContracts = (rescindedRaw ?? []).filter(
+    (c: any) => !existingEntryIds.has(c.id)
+  )
+
+  const allContracts = [...activeContracts, ...rescindedContracts]
+
+  if (allContracts.length === 0) throw new Error('Nenhum contrato encontrado para o período.')
+
+  // helper para parsear datas sem problemas de fuso horário/UTC
+  const parseLocalDate = (dateStr: string): Date => {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
 
   // due_date = mês seguinte ao referenceMonth, no dia due_day do contrato
   const dueMonthNum = refMonthNum === 12 ? 1 : refMonthNum + 1
   const dueYearNum = refMonthNum === 12 ? refYear + 1 : refYear
 
-  const entries = activeContracts.map((c: any) => {
-    const lastDayDue = new Date(dueYearNum, dueMonthNum, 0).getDate()
-    const dueDay = Math.min(c.due_day ?? 10, lastDayDue)
-    const dueDateStr = `${dueYearNum}-${String(dueMonthNum).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`
+  const entries: any[] = allContracts.map((c: any) => {
+    const isRescinded = c.status === 'rescindido'
+
+    // Rescindidos: vence na data de encerramento; ativos: dia de vencimento do mês seguinte
+    let dueDateStr: string
+    if (isRescinded && c.end_date) {
+      dueDateStr = c.end_date
+    } else {
+      const lastDayDue = new Date(dueYearNum, dueMonthNum, 0).getDate()
+      const dueDay = Math.min(c.due_day ?? 10, lastDayDue)
+      dueDateStr = `${dueYearNum}-${String(dueMonthNum).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`
+    }
 
     // Pré-preenche valores fixos do contrato; consumo fica null (proprietário preenche depois)
     let waterAmount = c.water_billing_type === 'fixed' ? (c.water_value ?? null) : null
     let energyAmount = c.energy_billing_type === 'fixed' ? (c.energy_value ?? null) : null
 
-    // Calcula aluguel proporcional se o contrato iniciou no meio do mês de referência
     let rentValue = Number(c.rent_value)
     if (isNaN(rentValue)) rentValue = 0
 
-    if (c.start_date && c.start_date > referenceMonth) {
-      const [startYear, startMonth, startDay] = c.start_date.split('-').map(Number)
-      if (startYear === refYear && startMonth === refMonthNum) {
-        const daysOccupied = lastDayNum - startDay + 1
-        if (daysOccupied < lastDayNum && daysOccupied > 0) {
-          // Proporcional do aluguel
-          rentValue = Number(((rentValue / lastDayNum) * daysOccupied).toFixed(2))
+    // Define o início e fim do ciclo de faturamento deste mês
+    const cycleStart = new Date(refYear, refMonthNum - 1, c.due_day ?? 10)
+    const cycleEnd = new Date(dueYearNum, dueMonthNum - 1, c.due_day ?? 10)
+    const cycleDays = Math.round((cycleEnd.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24))
 
-          // Proporcional das taxas fixas de água/energia
-          if (waterAmount !== null) {
-            waterAmount = Number(((waterAmount / lastDayNum) * daysOccupied).toFixed(2))
-          }
-          if (energyAmount !== null) {
-            energyAmount = Number(((energyAmount / lastDayNum) * daysOccupied).toFixed(2))
-          }
-        }
+    const contractStart = parseLocalDate(c.start_date)
+    const contractEnd = c.end_date ? parseLocalDate(c.end_date) : null
+
+    // Calcula a sobreposição entre a vigência do contrato e este ciclo de faturamento
+    // Se for uma renovação, assume que o inquilino já estava no imóvel (sem pro-rata de início)
+    const actualStart = !c.is_renewal && contractStart.getTime() > cycleStart.getTime() ? contractStart : cycleStart
+    const actualEnd = contractEnd && contractEnd.getTime() < cycleEnd.getTime() ? contractEnd : cycleEnd
+
+    const diffTime = actualEnd.getTime() - actualStart.getTime()
+    const daysOccupied = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+    // Se o inquilino não ocupou nenhum dia nesse ciclo de faturamento, descarta a cobrança
+    if (daysOccupied <= 0) {
+      return null
+    }
+
+    // Se o inquilino ocupou menos dias que o ciclo de faturamento inteiro, cobra proporcional
+    if (daysOccupied < cycleDays) {
+      rentValue = Number(((rentValue / 30) * daysOccupied).toFixed(2))
+      if (waterAmount !== null) {
+        waterAmount = Number(((waterAmount / 30) * daysOccupied).toFixed(2))
+      }
+      if (energyAmount !== null) {
+        energyAmount = Number(((energyAmount / 30) * daysOccupied).toFixed(2))
       }
     }
 
@@ -140,8 +195,9 @@ export async function generateMonthEntries(referenceMonth: string): Promise<{ to
       water_amount: waterAmount,
       energy_amount: energyAmount,
       is_paid: false,
+      notes: isRescinded ? `Rescisão — cobrança proporcional até ${dueDateStr} (${daysOccupied} dias)` : null,
     }
-  })
+  }).filter(Boolean)
 
   const { data, error: insertError } = await supabase
     .from('monthly_entries')

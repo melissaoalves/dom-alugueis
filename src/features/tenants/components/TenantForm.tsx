@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createTenant, updateTenant } from '../services/tenantsService'
 import { Button } from '@/src/shared/components/ui/Button'
 import { Input } from '@/src/shared/components/ui/Input'
-import { Textarea } from '@/src/shared/components/ui/Textarea'
+import { AddressFields } from '@/src/shared/components/ui/AddressFields'
 import { Tenant } from '@/src/shared/types/database'
 
 const labelClass = "block text-sm font-medium text-slate-300 mb-1"
@@ -35,7 +35,20 @@ export function TenantForm({ initialData }: TenantFormProps) {
         nationality: formData.get('nationality') as string,
         marital_status: formData.get('marital_status') as string,
         occupation: formData.get('occupation') as string,
-        address: formData.get('address') as string,
+        address: [
+          formData.get('logradouro'),
+          formData.get('numero'),
+          formData.get('bairro'),
+          formData.get('cidade'),
+          formData.get('uf'),
+        ].filter(Boolean).join(', '),
+        logradouro: (formData.get('logradouro') as string) || undefined,
+        numero: (formData.get('numero') as string) || undefined,
+        complemento: (formData.get('complemento') as string) || undefined,
+        bairro: (formData.get('bairro') as string) || undefined,
+        cep: (formData.get('cep') as string) || undefined,
+        cidade: (formData.get('cidade') as string) || undefined,
+        uf: (formData.get('uf') as string) || undefined,
         is_active: initialData ? initialData.is_active : true,
         veaco: initialData ? initialData.veaco : false,
       }
@@ -100,8 +113,18 @@ export function TenantForm({ initialData }: TenantFormProps) {
         </div>
 
         <div>
-          <label htmlFor="address" className={labelClass}>Endereço Atual</label>
-          <Textarea id="address" name="address" defaultValue={initialData?.address} placeholder="Onde reside atualmente..." className={inputClass} />
+          <label className={labelClass}>Endereço atual</label>
+          <AddressFields
+            defaultValues={{
+              logradouro: initialData?.logradouro,
+              numero: initialData?.numero,
+              complemento: initialData?.complemento,
+              bairro: initialData?.bairro,
+              cep: initialData?.cep,
+              cidade: initialData?.cidade,
+              uf: initialData?.uf,
+            }}
+          />
         </div>
       </div>
 

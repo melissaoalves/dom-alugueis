@@ -45,7 +45,7 @@ O desenvolvimento do DOM Aluguéis será dividido em fases modulares focadas em 
   - Vinculação opcional a um imóvel específico.
   - Remoção com confirmação.
 
-## Fase 5: Dashboard e Métricas (Sprint 5) - [PRÓXIMA AÇÃO]
+## Fase 5: Dashboard e Métricas (Sprint 5) - [CONCLUÍDA]
 - **Painel Principal (Home/Dashboard)**:
   - Cards de **Total a Receber vs. Já Recebido** do mês.
   - Cálculo de **Lucro Líquido** (Recebimentos - Despesas).
@@ -53,7 +53,7 @@ O desenvolvimento do DOM Aluguéis será dividido em fases modulares focadas em 
   - Métricas de **Ocupação e Vacância** (imóveis com/sem contrato ativo).
   - Lembretes de **Próximos Vencimentos** (contratos terminando em 30/60 dias).
 
-## Fase 6: Polimento e Funcionalidades Extras (Sprint 6 - Futuro)
+## Fase 6: Polimento e Funcionalidades Extras (Sprint 6) - [EM PROGRESSO]
 - Geração automática de contratos em PDF.
 - Exportação de relatórios (CSV/PDF).
 - Histórico de pagamentos por inquilino.
@@ -64,9 +64,9 @@ O desenvolvimento do DOM Aluguéis será dividido em fases modulares focadas em 
   - Cria um contrato novo do zero — o antigo permanece no histórico como vencido/encerrado.
   - O novo contrato já vem com `is_renewal: true` marcado automaticamente (sem cobrança de caução duplicada no dashboard).
   - Implementar na página de edição do contrato vencido e/ou no alerta do dashboard.
-- **Fluxo de Rescisão e Fechamento Financeiro**:
-  - Cadastro de regras de multa rescisória no contrato (`penalty_type`: `'fixed'` (meses fixos), `'proportional'` (proporcional por lei), `'custom'` (valor personalizado), `'none'`).
-  - Modal interativo de rescisão que calcula o valor da multa automaticamente e exibe campo editável para o proprietário ajustar se necessário.
-  - Opção de gerar mensalidade proporcional de saída (pro-rata até o dia da rescisão).
-  - Acerto do caução original (descontando multas, avarias ou reparos) exibindo saldo final.
-  - Geração automática de mensalidade de encerramento no ato de confirmação da rescisão.
+- **Fluxo de Rescisão e Fechamento Financeiro** - [PARCIALMENTE CONCLUÍDO]:
+  - [x] Regra de rescisão proporcional por lei (pro-rata exato calculado a partir do dia de vencimento e do dia da rescisão).
+  - [x] Geração automática da mensalidade de rescisão com o valor de aluguel e taxas fixas proporcionais corretos.
+  - [x] Correção de exibição de totais na listagem de mensalidades e dashboard (resolvido o bug que ignorava o valor pro-rata e exibia o valor integral do aluguel do contrato).
+  - [ ] Cadastro de regras flexíveis de multa rescisória (`penalty_type`) e acerto dinâmico do saldo do caução original.
+

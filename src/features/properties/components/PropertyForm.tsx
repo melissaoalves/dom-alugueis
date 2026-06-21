@@ -6,6 +6,7 @@ import { createProperty, updateProperty } from '../services/propertiesService'
 import { Button } from '@/src/shared/components/ui/Button'
 import { Input } from '@/src/shared/components/ui/Input'
 import { Textarea } from '@/src/shared/components/ui/Textarea'
+import { AddressFields } from '@/src/shared/components/ui/AddressFields'
 import { BillingStrategy, Property } from '@/src/shared/types/database'
 
 const selectClass = "w-full h-10 px-3 py-2 rounded-md border border-slate-800 bg-slate-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600"
@@ -31,7 +32,20 @@ export function PropertyForm({ initialData }: PropertyFormProps) {
       const payload = {
         title: formData.get('title') as string,
         description: formData.get('description') as string,
-        address: formData.get('address') as string,
+        address: [
+          formData.get('logradouro'),
+          formData.get('numero'),
+          formData.get('bairro'),
+          formData.get('cidade'),
+          formData.get('uf'),
+        ].filter(Boolean).join(', '),
+        logradouro: (formData.get('logradouro') as string) || undefined,
+        numero: (formData.get('numero') as string) || undefined,
+        complemento: (formData.get('complemento') as string) || undefined,
+        bairro: (formData.get('bairro') as string) || undefined,
+        cep: (formData.get('cep') as string) || undefined,
+        cidade: (formData.get('cidade') as string) || undefined,
+        uf: (formData.get('uf') as string) || undefined,
         rent_value: Number(formData.get('rent_value')),
         condo_fee: formData.get('condo_fee') ? Number(formData.get('condo_fee')) : undefined,
         water_billing_type: formData.get('water_billing_type') as BillingStrategy,
@@ -75,8 +89,19 @@ export function PropertyForm({ initialData }: PropertyFormProps) {
         </div>
 
         <div>
-          <label htmlFor="address" className={labelClass}>Endereço Completo *</label>
-          <Input id="address" name="address" required defaultValue={initialData?.address} placeholder="Rua, Número, Bairro, Cidade" className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-500" />
+          <label className={labelClass}>Endereço do imóvel *</label>
+          <AddressFields
+            required
+            defaultValues={{
+              logradouro: initialData?.logradouro,
+              numero: initialData?.numero,
+              complemento: initialData?.complemento,
+              bairro: initialData?.bairro,
+              cep: initialData?.cep,
+              cidade: initialData?.cidade,
+              uf: initialData?.uf,
+            }}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

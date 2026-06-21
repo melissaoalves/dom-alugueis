@@ -9,7 +9,7 @@ const fmt = (v: number) =>
 
 function entryTotal(e: any): number {
   const c = e.contract
-  const rent = c?.rent_value ?? 0
+  const rent = e.rent_value !== undefined && e.rent_value !== null ? e.rent_value : (c?.rent_value ?? 0)
   const waterBilling = c?.water_billing_type ?? 'not_included'
   const energyBilling = c?.energy_billing_type ?? 'not_included'
   const water = waterBilling === 'fixed'
