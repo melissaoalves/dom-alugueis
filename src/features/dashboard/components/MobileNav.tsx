@@ -2,15 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, Users, FileText, Wallet, UserCircle } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, FileText, Wallet, Receipt } from 'lucide-react'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Início', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/properties', label: 'Imóveis', icon: Building2 },
   { href: '/dashboard/tenants', label: 'Inquilinos', icon: Users },
   { href: '/dashboard/contracts', label: 'Contratos', icon: FileText },
-  { href: '/dashboard/finance', label: 'Finanças', icon: Wallet },
-  { href: '/dashboard/profile', label: 'Perfil', icon: UserCircle },
+  { href: '/dashboard/finance', label: 'Mensalidades', icon: Wallet, exact: true },
+  { href: '/dashboard/finance/expenses', label: 'Despesas', icon: Receipt },
 ]
 
 export function MobileNav() {

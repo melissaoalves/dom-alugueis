@@ -35,11 +35,11 @@ export default function DashboardLayout({
             </div>
           </div>
 
-          {/* Ícone de perfil — desktop */}
+          {/* Ícone de perfil — desktop e mobile */}
           <Link
             href="/dashboard/profile"
             title="Meu perfil"
-            className="hidden md:flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-slate-400 transition hover:border-slate-500 hover:text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-slate-400 transition hover:border-slate-500 hover:text-white"
           >
             <UserCircle size={18} />
           </Link>
