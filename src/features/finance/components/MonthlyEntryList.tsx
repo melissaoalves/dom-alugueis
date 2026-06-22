@@ -129,18 +129,18 @@ export function MonthlyEntryList() {
 
       {/* Resumo */}
       {entries.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-3 sm:p-4 min-w-0">
             <p className="text-xs text-slate-400">Cobranças</p>
-            <p className="mt-1 text-xl font-bold text-white">{entries.length}</p>
+            <p className="mt-1 text-lg sm:text-xl font-bold text-white">{entries.length}</p>
           </div>
-          <div className="rounded-lg border border-yellow-900/50 bg-yellow-900/20 p-4">
+          <div className="rounded-lg border border-yellow-900/50 bg-yellow-900/20 p-3 sm:p-4 min-w-0">
             <p className="text-xs text-yellow-400">A receber</p>
-            <p className="mt-1 text-xl font-bold text-yellow-300">{fmt(totalPending)}</p>
+            <p className="mt-1 text-xs sm:text-xl font-bold text-yellow-300 leading-tight">{fmt(totalPending)}</p>
           </div>
-          <div className="rounded-lg border border-emerald-900/50 bg-emerald-900/20 p-4">
+          <div className="rounded-lg border border-emerald-900/50 bg-emerald-900/20 p-3 sm:p-4 min-w-0">
             <p className="text-xs text-emerald-400">Recebido</p>
-            <p className="mt-1 text-xl font-bold text-emerald-300">{fmt(totalPaid)}</p>
+            <p className="mt-1 text-xs sm:text-xl font-bold text-emerald-300 leading-tight">{fmt(totalPaid)}</p>
           </div>
         </div>
       )}
