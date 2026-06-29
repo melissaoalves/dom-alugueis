@@ -4,6 +4,7 @@ import { Button } from '@/src/shared/components/ui/Button'
 import { signOut } from '@/src/features/auth/actions/auth'
 import { MonthFilter } from '@/src/features/dashboard/components/MonthFilter'
 import { RevenueChart, type ChartMonth } from '@/src/features/dashboard/components/RevenueChart'
+import { ExpenseCategoryChart } from '@/src/features/finance/components/ExpenseCategoryChart'
 import { Suspense } from 'react'
 import Link from 'next/link'
 
@@ -60,9 +61,9 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
   })()
 
-  // Dados do gráfico: 6 meses anteriores ao mês selecionado
-  const chartMonths = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(year, month - 1 - (5 - i), 1)
+  // Dados do gráfico: 3 meses anteriores ao mês selecionado
+  const chartMonths = Array.from({ length: 3 }, (_, i) => {
+    const d = new Date(year, month - 1 - (2 - i), 1)
     return { year: d.getFullYear(), month: d.getMonth() + 1 }
   })
   const chartStart = `${chartMonths[0].year}-${pad(chartMonths[0].month)}-01`
@@ -80,6 +81,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     { data: chartExpenses },
     { data: monthCaucao },
     { data: chartCaucao },
+    { data: pendingExpenses },
   ] = await Promise.all([
     supabase.from('profiles').select('first_name').eq('id', user.id).single(),
 
@@ -90,8 +92,9 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .lte('due_date', lastDay),
 
     supabase.from('expenses')
-      .select('amount')
+      .select('amount, category')
       .eq('owner_id', user.id)
+      .eq('is_settled', true)
       .gte('date', firstDay)
       .lte('date', lastDay),
 
@@ -124,6 +127,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     supabase.from('expenses')
       .select('date, amount')
       .eq('owner_id', user.id)
+      .eq('is_settled', true)
       .gte('date', chartStart)
       .lte('date', chartEnd),
 
@@ -142,6 +146,13 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .lte('start_date', chartEnd)
       .gt('guarantee_amount', 0)
       .eq('is_renewal', false),
+
+    // Despesas agendadas pendentes
+    supabase.from('expenses')
+      .select('id, description, amount, due_date, category, property:properties(title)')
+      .eq('owner_id', user.id)
+      .eq('is_settled', false)
+      .order('due_date', { ascending: true }),
   ])
 
   // Cálculos financeiros do mês selecionado
@@ -235,13 +246,20 @@ async function DashboardContent({ month, year }: { month: number; year: number }
         </div>
       </section>
 
-      {/* Gráfico */}
+      {/* Gráfico + Despesas por categoria */}
       <section>
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">
           Histórico — últimos 6 meses
         </h2>
-        <div className="rounded-lg border border-slate-800 bg-slate-900 p-6">
-          <RevenueChart data={chartData} />
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+          <div className="lg:w-1/2 rounded-lg border border-slate-800 bg-slate-900 p-6">
+            <RevenueChart data={chartData} />
+          </div>
+          {(monthExpenses ?? []).length > 0 && (
+            <div className="lg:w-1/2">
+              <ExpenseCategoryChart expenses={monthExpenses as { category: string; amount: number }[]} monthLabel={monthLabel} />
+            </div>
+          )}
         </div>
       </section>
 
@@ -268,7 +286,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       </section>
 
       {/* Alertas */}
-      {((overdueEntries && overdueEntries.length > 0) || (endingSoon && endingSoon.length > 0)) && (
+      {((overdueEntries && overdueEntries.length > 0) || (endingSoon && endingSoon.length > 0) || (pendingExpenses && pendingExpenses.length > 0)) && (
         <section>
           <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Alertas</h2>
           <div className="space-y-3">
@@ -318,6 +336,45 @@ async function DashboardContent({ month, year }: { month: number; year: number }
                 <Link href="/dashboard/contracts" className="mt-3 block text-xs text-amber-400/70 hover:text-amber-300 transition-colors">Ir para contratos →</Link>
               </div>
             )}
+
+            {pendingExpenses && pendingExpenses.length > 0 && (() => {
+              type PendingExp = { id: string; description: string; amount: number; due_date: string; category: string; property: { title: string } | null }
+              const exps = pendingExpenses as unknown as PendingExp[]
+              const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+              const overdueCount = exps.filter(e => e.due_date < todayStr).length
+              const dueTodayCount = exps.filter(e => e.due_date === todayStr).length
+              const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+              return (
+                <div className="rounded-lg border border-indigo-900/50 bg-indigo-950/20 p-5">
+                  <p className="mb-3 text-sm font-semibold text-indigo-400">
+                    {exps.length} despesa(s) agendada(s)
+                    {overdueCount > 0 && <span className="ml-2 text-rose-400">· {overdueCount} atrasada(s)</span>}
+                    {dueTodayCount > 0 && <span className="ml-2 text-amber-400">· {dueTodayCount} vence hoje</span>}
+                  </p>
+                  <div className="space-y-2">
+                    {exps.slice(0, 5).map(e => {
+                      const due = new Date(e.due_date + 'T00:00:00')
+                      const diffDays = Math.round((due.getTime() - todayMs) / (1000 * 60 * 60 * 24))
+                      const color = diffDays < 0 ? 'text-rose-300' : diffDays === 0 ? 'text-amber-300' : 'text-slate-400'
+                      const label = diffDays < 0 ? `${Math.abs(diffDays)}d atraso` : diffDays === 0 ? 'hoje' : `${diffDays}d`
+                      return (
+                        <div key={e.id} className="flex items-center justify-between text-sm">
+                          <div>
+                            <span className="text-white">{e.description}</span>
+                            {e.property && <span className="ml-2 text-xs text-slate-500">{e.property.title}</span>}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-xs font-medium ${color}`}>{label}</span>
+                            <span className="font-medium text-rose-300">{fmt(e.amount)}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <Link href="/dashboard/finance/expenses" className="mt-3 block text-xs text-indigo-400/70 hover:text-indigo-300 transition-colors">Ver todas as despesas →</Link>
+                </div>
+              )
+            })()}
           </div>
         </section>
       )}

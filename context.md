@@ -43,6 +43,22 @@ src/
 - **Vencimento e Atrasos**: A tabela `contracts` possui o dia de vencimento (`due_day`) e as taxas de juros/multa. A tabela `monthly_entries` recebe a data exata de vencimento do mês (`due_date`).
 - **Cálculo Automático**: Multa e juros são calculados automaticamente pelo sistema caso a data atual ultrapasse o `due_date` e o `is_paid` seja falso.
 - **Data de Pagamento**: Quando o aluguel é pago, registra-se a `payment_date`.
+- **`monthly_entries.rent_value`**: coluna armazena o valor do aluguel da entrada (pode ser proporcional). Priorizado sobre `contracts.rent_value` em todos os cálculos de total.
+
+### 4.3. Regras de Rescisão de Contrato
+- **Contratos vencidos** (expirados naturalmente): não gerar cobranças após o mês final. Contrato terminando em junho → último lançamento é referente a maio.
+- **Contratos rescindidos**: cobrar apenas os dias extras entre o `due_day` e o dia da rescisão no mês da rescisão. Ex: vencimento dia 10, rescisão dia 12 → 2 dias extras.
+  - Se `end_date_day <= due_day`: sem cobrança extra.
+  - Proporcional = `(dias_extras / dias_no_mês) × rent_value`.
+- O `ContractStatusButton` cria o lançamento pro-rata com `rent_value`, `water_amount`, `energy_amount` proporcionais separados.
+
+### 4.4. Despesas Agendadas
+- Despesas com `due_date` e `is_settled = false` são "agendadas" (pendentes).
+- Despesas normais têm `is_settled = true` (default).
+- Somente despesas `is_settled = true` entram nos totais do dashboard e no gráfico de categorias.
+- Ao confirmar pagamento (`settleExpense`): `is_settled = true`, `date = hoje`.
+- Ao desfazer (`unsettleExpense`): `is_settled = false`.
+- **TODO**: notificação por e-mail na data de vencimento (Supabase Edge Function + pg_cron).
 
 ### 4.3. Categorias de Despesas (`expenses`)
 As categorias permitidas para despesas do proprietário são:

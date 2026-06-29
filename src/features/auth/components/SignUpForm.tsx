@@ -8,84 +8,73 @@ import { Input } from '@/src/shared/components/ui/Input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/shared/components/ui/Card'
 import Link from 'next/link'
 
+const labelClass = "block text-sm font-medium text-slate-300 mb-1"
+const labelOptClass = "block text-sm font-medium text-slate-500 mb-1"
+const inputClass = "bg-slate-950/50 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500"
+const selectClass = "w-full h-10 px-3 rounded-md border border-white/10 bg-slate-950/50 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+
+const MARITAL_STATUS = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União estável']
+
+const emptyForm = {
+  firstName: '', lastName: '', email: '', phone: '', documentId: '',
+  password: '', confirmPassword: '',
+  nationality: '', maritalStatus: '', occupation: '',
+  logradouro: '', numero: '', complemento: '', bairro: '', cep: '', cidade: '', uf: '',
+}
+
 export function SignUpForm() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    documentId: '',
-    password: '',
-    confirmPassword: '',
-  })
+  const [formData, setFormData] = useState(emptyForm)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name: fieldName } = e.target
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     let { value } = e.target
-
-    // Formatação automática de Document ID (CPF/CNPJ)
-    if (fieldName === 'documentId') {
+    if (field === 'documentId') {
       value = value.replace(/\D/g, '')
       if (value.length <= 11) {
-        value = value.replace(/(\d{3})(\d)/, '$1.$2')
-        value = value.replace(/(\d{3})(\d)/, '$1.$2')
-        value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+        value = value.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
       }
     }
-
-    // Formatação automática de telefone
-    if (fieldName === 'phone') {
-      value = value.replace(/\D/g, '')
-      if (value.length <= 11) {
-        if (value.length > 0) {
-          value = value.replace(/^(\d{0,2})/, '($1')
-          value = value.replace(/(\(\d{2})(\d{0,5})/, '$1) $2')
-          value = value.replace(/(\d{5})(\d{0,4})$/, '$1-$2')
-        }
+    if (field === 'phone') {
+      value = value.replace(/\D/g, '').slice(0, 11)
+      if (value.length > 0) {
+        value = value.replace(/^(\d{0,2})/, '($1').replace(/(\(\d{2})(\d{0,5})/, '$1) $2').replace(/(\d{5})(\d{0,4})$/, '$1-$2')
       }
     }
-
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: value,
-    }))
+    if (field === 'cep') {
+      value = value.replace(/\D/g, '').slice(0, 8)
+      if (value.length > 5) value = value.replace(/(\d{5})(\d)/, '$1-$2')
+    }
+    if (field === 'uf') value = value.toUpperCase().slice(0, 2)
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    setSuccess(false)
 
-    // Validações básicas
     if (formData.password !== formData.confirmPassword) {
       setError('As senhas não correspondem.')
       setLoading(false)
       return
     }
-
     if (formData.password.length < 6) {
       setError('A senha deve ter pelo menos 6 caracteres.')
       setLoading(false)
       return
     }
-
-    // Validar CPF (apenas números, 11 dígitos)
-    const documentIdNumbers = formData.documentId.replace(/\D/g, '')
-    if (documentIdNumbers.length !== 11) {
-      setError('Documento deve conter 11 dígitos.')
+    const docNumbers = formData.documentId.replace(/\D/g, '')
+    if (docNumbers.length !== 11) {
+      setError('CPF deve conter 11 dígitos.')
       setLoading(false)
       return
     }
-
-    // Validar telefone (apenas números, 11 dígitos)
     const phoneNumbers = formData.phone.replace(/\D/g, '')
-    if (phoneNumbers.length < 10 || phoneNumbers.length > 11) {
-      setError('Telefone deve conter entre 10 e 11 dígitos.')
+    if (phoneNumbers.length < 10) {
+      setError('Telefone inválido.')
       setLoading(false)
       return
     }
@@ -97,25 +86,22 @@ export function SignUpForm() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: phoneNumbers,
-        documentId: documentIdNumbers,
+        documentId: docNumbers,
+        nationality: formData.nationality,
+        maritalStatus: formData.maritalStatus,
+        occupation: formData.occupation,
+        logradouro: formData.logradouro,
+        numero: formData.numero,
+        complemento: formData.complemento,
+        bairro: formData.bairro,
+        cep: formData.cep.replace(/\D/g, ''),
+        cidade: formData.cidade,
+        uf: formData.uf,
       })
 
       if (result.success) {
         setSuccess(true)
-        setFormData({
-          firstName: '',
-          lastName: '',
-          email: '',
-          phone: '',
-          documentId: '',
-          password: '',
-          confirmPassword: '',
-        })
-        
-        // Redirecionar para login após sucesso
-        setTimeout(() => {
-          router.push('/auth/login')
-        }, 2000)
+        setTimeout(() => router.push('/auth/login'), 2500)
       } else {
         setError(result.message)
       }
@@ -128,19 +114,15 @@ export function SignUpForm() {
 
   if (success) {
     return (
-      <Card className="w-full">
+      <Card className="w-full bg-slate-900/60 border-white/10 backdrop-blur-xl shadow-2xl">
         <CardHeader>
-          <CardTitle className="text-green-600">Cadastro realizado!</CardTitle>
+          <CardTitle className="text-emerald-400 text-xl">Cadastro realizado!</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Verifique seu email para confirmar sua conta. Você será redirecionado para o login em breve.
-          </p>
-          <div className="text-center">
-            <Link href="/auth/login" className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400">
-              Ir para login
-            </Link>
-          </div>
+          <p className="text-sm text-slate-400">Verifique seu e-mail para confirmar a conta. Você será redirecionado para o login em instantes.</p>
+          <Link href="/auth/login" className="block text-center text-sm font-medium text-indigo-400 hover:text-indigo-300">
+            Ir para login →
+          </Link>
         </CardContent>
       </Card>
     )
@@ -150,151 +132,131 @@ export function SignUpForm() {
     <Card className="w-full bg-slate-900/60 border-white/10 backdrop-blur-xl shadow-2xl">
       <CardHeader>
         <CardTitle className="text-white text-2xl font-bold">Criar conta no Dom Aluguéis</CardTitle>
-        <CardDescription className="text-slate-400">Preencha os dados abaixo para se cadastrar</CardDescription>
+        <CardDescription className="text-slate-400">Preencha os dados abaixo. As informações pessoais são usadas na geração de contratos.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
-              {error}
-            </div>
+            <div className="rounded-md bg-red-900/20 border border-red-900/50 p-3 text-sm text-red-400">{error}</div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="firstName" className="text-sm font-medium text-slate-300">
-                Primeiro nome
-              </label>
-              <Input
-                id="firstName"
-                name="firstName"
-                type="text"
-                placeholder="João"
-                value={formData.firstName}
-                onChange={handleChange}
-                required
-                disabled={loading}
-                className="bg-slate-950/50 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="lastName" className="text-sm font-medium text-slate-300">
-                Sobrenome
-              </label>
-              <Input
-                id="lastName"
-                name="lastName"
-                type="text"
-                placeholder="Silva"
-                value={formData.lastName}
-                onChange={handleChange}
-                required
-                disabled={loading}
-                className="bg-slate-950/50 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500"
-              />
+          {/* Acesso */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Dados de acesso</p>
+            <div className="space-y-3">
+              <div>
+                <label className={labelClass}>E-mail *</label>
+                <Input type="email" value={formData.email} onChange={set('email')} placeholder="seu@email.com" required disabled={loading} className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Senha *</label>
+                  <Input type="password" value={formData.password} onChange={set('password')} placeholder="••••••••" required disabled={loading} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Confirmar senha *</label>
+                  <Input type="password" value={formData.confirmPassword} onChange={set('confirmPassword')} placeholder="••••••••" required disabled={loading} className={inputClass} />
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium text-slate-300">
-              Email
-            </label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="seu@email.com"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              disabled={loading}
-              className="bg-slate-950/50 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500"
-            />
-          </div>
+          <div className="border-t border-white/5" />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="documentId" className="text-sm font-medium text-slate-300">
-                CPF/Documento
-              </label>
-              <Input
-                id="documentId"
-                name="documentId"
-                type="text"
-                placeholder="000.000.000-00"
-                value={formData.documentId}
-                onChange={handleChange}
-                maxLength={14}
-                required
-                disabled={loading}
-                className="bg-slate-950/50 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500"
-              />
-              <p className="text-xs text-slate-500">Ex: 123.456.789-00</p>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="phone" className="text-sm font-medium text-slate-300">
-                Telefone
-              </label>
-              <Input
-                id="phone"
-                name="phone"
-                type="text"
-                placeholder="(11) 99999-9999"
-                value={formData.phone}
-                onChange={handleChange}
-                maxLength={15}
-                required
-                disabled={loading}
-                className="bg-slate-950/50 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500"
-              />
-              <p className="text-xs text-slate-500">Ex: (11) 99999-9999</p>
+          {/* Dados pessoais */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Dados pessoais</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Primeiro nome *</label>
+                  <Input value={formData.firstName} onChange={set('firstName')} placeholder="João" required disabled={loading} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Sobrenome *</label>
+                  <Input value={formData.lastName} onChange={set('lastName')} placeholder="Silva" required disabled={loading} className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>CPF *</label>
+                  <Input value={formData.documentId} onChange={set('documentId')} placeholder="000.000.000-00" maxLength={14} required disabled={loading} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Celular *</label>
+                  <Input value={formData.phone} onChange={set('phone')} placeholder="(11) 99999-9999" maxLength={15} required disabled={loading} className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className={labelOptClass}>Nacionalidade</label>
+                  <Input value={formData.nationality} onChange={set('nationality')} placeholder="Brasileiro(a)" disabled={loading} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelOptClass}>Estado civil</label>
+                  <select value={formData.maritalStatus} onChange={set('maritalStatus')} disabled={loading} className={selectClass}>
+                    <option value="">Selecione...</option>
+                    {MARITAL_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelOptClass}>Profissão</label>
+                  <Input value={formData.occupation} onChange={set('occupation')} placeholder="Ex: Empresário" disabled={loading} className={inputClass} />
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium text-slate-300">
-              Senha
-            </label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              disabled={loading}
-              className="bg-slate-950/50 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 focus:ring-indigo-500"
-            />
+          <div className="border-t border-white/5" />
+
+          {/* Endereço */}
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Endereço <span className="normal-case font-normal text-slate-600">(usado nos contratos)</span></p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className={labelOptClass}>Logradouro</label>
+                  <Input value={formData.logradouro} onChange={set('logradouro')} placeholder="Rua, Av., Travessa..." disabled={loading} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelOptClass}>Número</label>
+                  <Input value={formData.numero} onChange={set('numero')} placeholder="123" disabled={loading} className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelOptClass}>Complemento</label>
+                  <Input value={formData.complemento} onChange={set('complemento')} placeholder="Apto, Bloco..." disabled={loading} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelOptClass}>Bairro</label>
+                  <Input value={formData.bairro} onChange={set('bairro')} placeholder="Centro" disabled={loading} className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                <div>
+                  <label className={labelOptClass}>CEP</label>
+                  <Input value={formData.cep} onChange={set('cep')} placeholder="00000-000" maxLength={9} disabled={loading} className={inputClass} />
+                </div>
+                <div className="col-span-2">
+                  <label className={labelOptClass}>Cidade</label>
+                  <Input value={formData.cidade} onChange={set('cidade')} placeholder="Ex: Tauá" disabled={loading} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelOptClass}>UF</label>
+                  <Input value={formData.uf} onChange={set('uf')} placeholder="CE" maxLength={2} disabled={loading} className={inputClass} />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="confirmPassword" className="text-sm font-medium text-slate-300">
-              Confirmar senha
-            </label>
-            <Input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              placeholder="••••••••"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              disabled={loading}
-            />
-          </div>
-
-          <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_20px_-5px_rgba(79,70,229,0.5)] transition-all" disabled={loading}>
+          <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_20px_-5px_rgba(79,70,229,0.5)]" disabled={loading}>
             {loading ? 'Criando conta...' : 'Criar conta'}
           </Button>
 
           <div className="text-center text-sm text-slate-400">
             Já tem uma conta?{' '}
-            <Link href="/auth/login" className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline">
-              Entre aqui
-            </Link>
+            <Link href="/auth/login" className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline">Entre aqui</Link>
           </div>
         </form>
       </CardContent>

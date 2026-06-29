@@ -125,6 +125,8 @@ export interface Expense {
   description: string
   amount: number
   date: string
+  due_date?: string
+  is_settled: boolean
   property_id?: string
   category: string
   owner_id: string

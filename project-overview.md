@@ -54,19 +54,68 @@ O desenvolvimento do DOM Aluguéis será dividido em fases modulares focadas em 
   - Lembretes de **Próximos Vencimentos** (contratos terminando em 30/60 dias).
 
 ## Fase 6: Polimento e Funcionalidades Extras (Sprint 6) - [EM PROGRESSO]
-- Geração automática de contratos em PDF.
-- Exportação de relatórios (CSV/PDF).
-- Histórico de pagamentos por inquilino.
-- **Renovação rápida de contrato**:
-  - Quando um contrato estiver vencendo (alerta já existe no dashboard), exibir botão "Renovar Contrato".
-  - Abre o formulário de novo contrato pré-preenchido com todos os dados do contrato atual (imóvel, inquilino, valores, billing types, cláusulas).
-  - Proprietário ajusta apenas o que mudou (valor, prazo, caução, etc.) e confirma.
-  - Cria um contrato novo do zero — o antigo permanece no histórico como vencido/encerrado.
-  - O novo contrato já vem com `is_renewal: true` marcado automaticamente (sem cobrança de caução duplicada no dashboard).
-  - Implementar na página de edição do contrato vencido e/ou no alerta do dashboard.
-- **Fluxo de Rescisão e Fechamento Financeiro** - [PARCIALMENTE CONCLUÍDO]:
-  - [x] Regra de rescisão proporcional por lei (pro-rata exato calculado a partir do dia de vencimento e do dia da rescisão).
-  - [x] Geração automática da mensalidade de rescisão com o valor de aluguel e taxas fixas proporcionais corretos.
-  - [x] Correção de exibição de totais na listagem de mensalidades e dashboard (resolvido o bug que ignorava o valor pro-rata e exibia o valor integral do aluguel do contrato).
-  - [ ] Cadastro de regras flexíveis de multa rescisória (`penalty_type`) e acerto dinâmico do saldo do caução original.
+
+### Concluído nesta fase
+- [x] **Despesas agendadas**: proprietário agenda despesa com `due_date`, recebe lembrete no app (dashboard + tela de despesas). Confirmação de pagamento e desfazer disponíveis. Migration: `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS due_date date, ADD COLUMN IF NOT EXISTS is_settled boolean NOT NULL DEFAULT true;`
+- [x] **Edição de despesas**: página `/dashboard/finance/expenses/[id]/edit`.
+- [x] **Dashboard melhorado**: gráfico de categorias de despesas lado a lado com histórico (3 meses), alertas de despesas agendadas pendentes.
+- [x] **Cadastro completo do proprietário**: `SignUpForm` agora coleta nacionalidade, estado civil, profissão e endereço completo — todos necessários para geração de contratos PDF.
+- [x] **Mobile nav**: Despesas separado de Mensalidades no bottom nav; perfil no topo mesmo no mobile.
+- [x] **Bug rescisão corrigido**: `generateMonthEntries` calcula aluguel proporcional para rescindidos (dias extras entre `due_day` e `end_date`). `ContractStatusButton` salva `rent_value` proporcional corretamente.
+
+### Pendente
+- [ ] **Notificações por e-mail** para despesas agendadas (Supabase Edge Function + pg_cron).
+- [ ] **Geração de Contratos em PDF**.
+- [ ] **Renovação rápida de contrato** (pré-preenchimento do formulário com dados do contrato atual).
+- [ ] **Exportação de relatórios** (CSV/PDF).
+- [ ] Unificar lógica pro-rata do `ContractStatusButton` com a regra do `generateMonthEntries` (contar só dias entre `due_day` e `end_date` no mês da rescisão).
+
+---
+
+## SQL do Trigger `handle_new_user` (versão atual)
+
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (
+    id, first_name, last_name, phone, document_id,
+    nationality, marital_status, occupation,
+    logradouro, numero, complemento, bairro, cep, cidade, uf
+  )
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data->>'first_name',
+    NEW.raw_user_meta_data->>'last_name',
+    NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'document_id',
+    NEW.raw_user_meta_data->>'nationality',
+    NEW.raw_user_meta_data->>'marital_status',
+    NEW.raw_user_meta_data->>'occupation',
+    NEW.raw_user_meta_data->>'logradouro',
+    NEW.raw_user_meta_data->>'numero',
+    NEW.raw_user_meta_data->>'complemento',
+    NEW.raw_user_meta_data->>'bairro',
+    NEW.raw_user_meta_data->>'cep',
+    NEW.raw_user_meta_data->>'cidade',
+    NEW.raw_user_meta_data->>'uf'
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    first_name     = EXCLUDED.first_name,
+    last_name      = EXCLUDED.last_name,
+    phone          = EXCLUDED.phone,
+    nationality    = EXCLUDED.nationality,
+    marital_status = EXCLUDED.marital_status,
+    occupation     = EXCLUDED.occupation,
+    logradouro     = EXCLUDED.logradouro,
+    numero         = EXCLUDED.numero,
+    complemento    = EXCLUDED.complemento,
+    bairro         = EXCLUDED.bairro,
+    cep            = EXCLUDED.cep,
+    cidade         = EXCLUDED.cidade,
+    uf             = EXCLUDED.uf;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
 

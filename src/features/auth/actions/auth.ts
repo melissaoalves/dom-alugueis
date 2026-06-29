@@ -9,6 +9,16 @@ interface SignUpData {
   lastName: string
   phone: string
   documentId: string
+  nationality?: string
+  maritalStatus?: string
+  occupation?: string
+  logradouro?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  cep?: string
+  cidade?: string
+  uf?: string
 }
 
 interface SignInData {
@@ -20,7 +30,7 @@ export async function signUp(data: SignUpData) {
   const supabase = await createClient()
 
   try {
-    const { error } = await supabase.auth.signUp({
+    const { data: authData, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -29,18 +39,43 @@ export async function signUp(data: SignUpData) {
           last_name: data.lastName,
           phone: data.phone,
           document_id: data.documentId,
+          nationality: data.nationality,
+          marital_status: data.maritalStatus,
+          occupation: data.occupation,
+          logradouro: data.logradouro,
+          numero: data.numero,
+          complemento: data.complemento,
+          bairro: data.bairro,
+          cep: data.cep,
+          cidade: data.cidade,
+          uf: data.uf,
         },
       },
     })
 
-    if (error) {
-      return {
-        success: false,
-        message: error.message,
-      }
+    if (error) return { success: false, message: error.message }
+
+    // Salva campos extras no perfil se o usuário foi criado
+    if (authData.user) {
+      await supabase.from('profiles').upsert({
+        id: authData.user.id,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        phone: data.phone,
+        document_id: data.documentId,
+        nationality: data.nationality || null,
+        marital_status: data.maritalStatus || null,
+        occupation: data.occupation || null,
+        logradouro: data.logradouro || null,
+        numero: data.numero || null,
+        complemento: data.complemento || null,
+        bairro: data.bairro || null,
+        cep: data.cep || null,
+        cidade: data.cidade || null,
+        uf: data.uf || null,
+      })
     }
 
-    // Redirecionar para login após cadastro bem-sucedido
     return {
       success: true,
       message: 'Cadastro realizado! Verifique seu email para confirmar.',
