@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, X } from 'lucide-react'
+import { Pencil, X, QrCode } from 'lucide-react'
 import { updateMonthlyEntry, calcLateFees } from '../services/monthlyEntriesService'
+import { BillingSlipModal } from './BillingSlipModal'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
@@ -17,6 +18,7 @@ interface Props {
 export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showSlip, setShowSlip] = useState(false)
 
   const contract = entry.contract
   const property = entry.property
@@ -100,6 +102,14 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             }`}>
               {entry.is_paid ? 'Pago' : isLate ? `${daysLate}d atraso` : 'Pendente'}
             </span>
+
+            <button
+              onClick={() => setShowSlip(true)}
+              title="Gerar cobrança PIX"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 text-slate-400 transition-colors hover:border-slate-500 hover:text-white"
+            >
+              <QrCode size={13} />
+            </button>
 
             <button
               onClick={() => setExpanded(v => !v)}
@@ -259,6 +269,24 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             : '—'}
           {entry.notes && <span className="ml-2 text-slate-600">· {entry.notes}</span>}
         </div>
+      )}
+
+      {showSlip && (
+        <BillingSlipModal
+          entry={entry}
+          totalValue={totalValue}
+          lines={[
+            { label: 'Aluguel', value: rentValue },
+            ...(waterFixed > 0 ? [{ label: 'Água (fixo)', value: waterFixed }] : []),
+            ...(energyFixed > 0 ? [{ label: 'Energia (fixo)', value: energyFixed }] : []),
+            ...(waterConsumption > 0 ? [{ label: 'Água (consumo)', value: waterConsumption }] : []),
+            ...(energyConsumption > 0 ? [{ label: 'Energia (consumo)', value: energyConsumption }] : []),
+            ...((Number(extra) || 0) > 0 ? [{ label: extraDesc || 'Extra', value: Number(extra) }] : []),
+            ...(isLate ? [{ label: 'Multa + Juros', value: penalty + interest }] : []),
+            { label: 'Total', value: totalValue, highlight: true },
+          ]}
+          onClose={() => setShowSlip(false)}
+        />
       )}
     </div>
   )

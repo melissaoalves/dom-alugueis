@@ -23,7 +23,7 @@ export async function getMonthlyEntries(referenceMonth: string) {
     contractIds.length > 0
       ? supabase
           .from('contracts')
-          .select('id, rent_value, penalty_fee, interest_rate, tenant_id, water_billing_type, water_value, energy_billing_type, energy_value')
+          .select('id, rent_value, penalty_fee, interest_rate, tenant_id, water_billing_type, water_value, energy_billing_type, energy_value, pix_key_guarantee')
           .in('id', contractIds)
       : Promise.resolve({ data: [] }),
     propertyIds.length > 0
