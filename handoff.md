@@ -5,7 +5,7 @@ Este arquivo serve como um "ponto de save" do projeto. Ao iniciar uma nova sess�
 ---
 
 ## Status Atual
-**Fase 5 Concluída. Pronto para iniciar a Fase 6.**
+**Fase 6 em progresso.** Concluído até aqui: despesas agendadas, edição de despesas, dashboard melhorado, cadastro completo do proprietário, bug de rescisão corrigido e cobrança via PIX (QR Code) nos lançamentos mensais. Pendente: notificações por e-mail, geração de contratos em PDF, renovação rápida de contrato, exportação de relatórios (ver `project-overview.md`).
 
 ---
 
@@ -58,6 +58,7 @@ Este arquivo serve como um "ponto de save" do projeto. Ao iniciar uma nova sess�
 - **Bug corrigido — rescindidos**: `generateMonthEntries` agora calcula aluguel proporcional para contratos rescindidos (dias extras entre `due_day` e dia da rescisão em `end_date`). Se `endDay <= due_day`, nenhum lançamento é gerado.
 - **Bug corrigido — ContractStatusButton**: pro-rata salvo corretamente em `rent_value`, `water_amount`, `energy_amount` separados (antes ficava tudo null). `calcProRata` chamado por componente.
 - **`MonthlyEntry` type**: campo `rent_value?: number` adicionado em `database.ts`.
+- **Cobrança via PIX**: `BillingSlipModal` (novo componente) exibe breakdown da cobrança + QR Code Pix, com copia-e-cola e download em imagem (`html-to-image` + `qrcode.react`). Payload BR Code montado em `pixPayload.ts` (TLV + CRC16) a partir da chave Pix do contrato (`contracts.pix_key_guarantee`, agora incluída na query de `getMonthlyEntries`).
 - **Despesas agendadas** (`expenses`):
   - Migração necessária: `ALTER TABLE expenses ADD COLUMN due_date date, ADD COLUMN is_settled boolean NOT NULL DEFAULT true;`
   - `ExpenseForm`: toggle "Agendar despesa" — alterna entre campo `date` (normal) e `due_date` (agendada).
@@ -85,6 +86,7 @@ Este arquivo serve como um "ponto de save" do projeto. Ao iniciar uma nova sess�
 - Rodar no Supabase SQL Editor:
   1. `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS due_date date, ADD COLUMN IF NOT EXISTS is_settled boolean NOT NULL DEFAULT true;`
   2. Atualizar trigger `handle_new_user` (SQL completo em `project-overview.md`)
+  3. `ALTER TABLE monthly_entries ADD COLUMN IF NOT EXISTS waive_late_fees boolean NOT NULL DEFAULT false;` (necessário para a opção de isenção de multa/juros por lançamento)
 - Bug de rescisão no `ContractStatusButton`: o cálculo pro-rata ainda usa `calcProRata` que depende de `lastPaidRefMonth`. Se esse valor for null, usa `contractStartDate` como início — pode cobrar meses a mais. **Regra correta**: contar apenas os dias extras entre `due_day` e `end_date` no mês da rescisão (igual ao que foi feito em `generateMonthEntries`). Pendente de unificar a lógica.
 
 ### Fase 6 — Funcionalidades planejadas

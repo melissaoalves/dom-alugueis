@@ -147,4 +147,5 @@ export interface MonthlyEntry {
   is_paid: boolean
   payment_date?: string
   notes?: string
+  waive_late_fees?: boolean
 }

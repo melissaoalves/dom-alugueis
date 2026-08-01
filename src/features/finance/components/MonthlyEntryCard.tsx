@@ -40,10 +40,11 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const [paymentDate, setPaymentDate] = useState(
     entry.payment_date ?? new Date().toISOString().split('T')[0]
   )
+  const [waiveLateFees, setWaiveLateFees] = useState(entry.waive_late_fees ?? false)
 
   const { penalty, interest, daysLate } = entry.is_paid
     ? { penalty: 0, interest: 0, daysLate: 0 }
-    : calcLateFees(entry.due_date, rentValue, penaltyRate, interestRate, paymentDate)
+    : calcLateFees(entry.due_date, rentValue, waiveLateFees ? 0 : penaltyRate, waiveLateFees ? 0 : interestRate, paymentDate)
 
   const isLate = !entry.is_paid && daysLate > 0
 
@@ -66,6 +67,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
           extra_amount: extra !== '' ? Number(extra) : undefined,
           extra_description: extraDesc || undefined,
           notes: notes || undefined,
+          waive_late_fees: waiveLateFees,
           ...(action === 'paid' && { is_paid: true, payment_date: paymentDate }),
         })
       }
@@ -161,7 +163,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
               <span className="text-white">{fmt(Number(extra))}</span>
             </div>
           )}
-          {isLate && (
+          {isLate && (penalty + interest) > 0 && (
             <div className="flex justify-between text-rose-400">
               <span>Multa + Juros</span>
               <span>{fmt(penalty + interest)}</span>
@@ -183,12 +185,24 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
           {isLate && (
             <div className="rounded-md border border-rose-900/50 bg-rose-900/20 p-3 text-sm">
               <p className="font-medium text-rose-400">Em atraso — {daysLate} dia(s) até a data selecionada</p>
-              <div className="mt-1 flex gap-4 text-xs text-rose-300/70">
-                <span>Multa: {fmt(penalty)}</span>
-                <span>Juros: {fmt(interest)}</span>
-              </div>
+              {!waiveLateFees && (
+                <div className="mt-1 flex gap-4 text-xs text-rose-300/70">
+                  <span>Multa: {fmt(penalty)}</span>
+                  <span>Juros: {fmt(interest)}</span>
+                </div>
+              )}
             </div>
           )}
+
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            <input
+              type="checkbox"
+              checked={waiveLateFees}
+              onChange={e => setWaiveLateFees(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate-700 bg-slate-950 accent-indigo-600"
+            />
+            Não cobrar multa/juros neste lançamento
+          </label>
 
           {(waterBilling === 'consumption' || energyBilling === 'consumption') && (
             <div className="grid grid-cols-2 gap-3">
@@ -282,7 +296,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             ...(waterConsumption > 0 ? [{ label: 'Água (consumo)', value: waterConsumption }] : []),
             ...(energyConsumption > 0 ? [{ label: 'Energia (consumo)', value: energyConsumption }] : []),
             ...((Number(extra) || 0) > 0 ? [{ label: extraDesc || 'Extra', value: Number(extra) }] : []),
-            ...(isLate ? [{ label: 'Multa + Juros', value: penalty + interest }] : []),
+            ...(isLate && (penalty + interest) > 0 ? [{ label: 'Multa + Juros', value: penalty + interest }] : []),
             { label: 'Total', value: totalValue, highlight: true },
           ]}
           onClose={() => setShowSlip(false)}

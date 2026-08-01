@@ -42,6 +42,7 @@ src/
 - O sistema gera os lançamentos (`monthly_entries`) pré-preenchidos replicando a informação do contrato. O proprietário apenas ajusta consumo de água/luz se aplicável.
 - **Vencimento e Atrasos**: A tabela `contracts` possui o dia de vencimento (`due_day`) e as taxas de juros/multa. A tabela `monthly_entries` recebe a data exata de vencimento do mês (`due_date`).
 - **Cálculo Automático**: Multa e juros são calculados automaticamente pelo sistema caso a data atual ultrapasse o `due_date` e o `is_paid` seja falso.
+- **Isenção de multa/juros (`waive_late_fees`)**: o proprietário pode desmarcar a cobrança de multa/juros em um lançamento específico via checkbox no `MonthlyEntryCard` (aparece quando o lançamento está em atraso). Quando `true`, `calcLateFees` é chamado com taxas zeradas — o atraso em dias continua sendo exibido, mas nenhum valor de multa/juros é somado ao total nem exibido no boleto PIX.
 - **Data de Pagamento**: Quando o aluguel é pago, registra-se a `payment_date`.
 - **`monthly_entries.rent_value`**: coluna armazena o valor do aluguel da entrada (pode ser proporcional). Priorizado sobre `contracts.rent_value` em todos os cálculos de total.
 
@@ -52,7 +53,11 @@ src/
   - Proporcional = `(dias_extras / dias_no_mês) × rent_value`.
 - O `ContractStatusButton` cria o lançamento pro-rata com `rent_value`, `water_amount`, `energy_amount` proporcionais separados.
 
-### 4.4. Despesas Agendadas
+### 4.4. Cobrança via PIX
+- `contracts.pix_key_guarantee` armazena a chave Pix usada para cobrar o inquilino daquele contrato.
+- O `MonthlyEntryCard` oferece um botão que abre o `BillingSlipModal`, exibindo o detalhamento da cobrança do mês e um QR Code Pix (padrão BR Code, gerado em `src/features/finance/utils/pixPayload.ts`) para pagamento direto pelo inquilino, com opção de copiar o código "copia e cola" e baixar o comprovante como imagem.
+
+### 4.5. Despesas Agendadas
 - Despesas com `due_date` e `is_settled = false` são "agendadas" (pendentes).
 - Despesas normais têm `is_settled = true` (default).
 - Somente despesas `is_settled = true` entram nos totais do dashboard e no gráfico de categorias.

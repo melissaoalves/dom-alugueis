@@ -62,6 +62,8 @@ O desenvolvimento do DOM Aluguéis será dividido em fases modulares focadas em 
 - [x] **Cadastro completo do proprietário**: `SignUpForm` agora coleta nacionalidade, estado civil, profissão e endereço completo — todos necessários para geração de contratos PDF.
 - [x] **Mobile nav**: Despesas separado de Mensalidades no bottom nav; perfil no topo mesmo no mobile.
 - [x] **Bug rescisão corrigido**: `generateMonthEntries` calcula aluguel proporcional para rescindidos (dias extras entre `due_day` e `end_date`). `ContractStatusButton` salva `rent_value` proporcional corretamente.
+- [x] **Cobrança via PIX (boleto/carnê digital)**: botão de QR code no `MonthlyEntryCard` abre `BillingSlipModal` com breakdown da cobrança, QR Code Pix (payload BR Code montado em `pixPayload.ts`, com CRC16), copia-e-cola e download como imagem (`html-to-image`). Usa a chave Pix cadastrada no contrato (`contracts.pix_key_guarantee`, incluído na query de `getMonthlyEntries`). Dependências adicionadas: `qrcode.react`, `html-to-image`.
+- [x] **Isenção de multa/juros por lançamento**: novo campo `monthly_entries.waive_late_fees` (boolean, default `false`). Checkbox no `MonthlyEntryCard` (visível quando o lançamento está em atraso) permite ao proprietário optar por não cobrar multa/juros daquele lançamento específico, mantendo o indicador de dias em atraso. Migration: `ALTER TABLE monthly_entries ADD COLUMN IF NOT EXISTS waive_late_fees boolean NOT NULL DEFAULT false;`
 
 ### Pendente
 - [ ] **Notificações por e-mail** para despesas agendadas (Supabase Edge Function + pg_cron).
