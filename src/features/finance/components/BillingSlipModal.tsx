@@ -177,7 +177,7 @@ export function BillingSlipModal({ entry, totalValue, lines, energy, title = 'Co
               {billInfo?.prevDate && billInfo?.currDate && (
                 billInfo.prevKind === 'initial' ? (
                   // Primeira leitura (base 0): mostra os meses cobertos, sem as datas
-                  <p className="mt-1 text-xs text-gray-500 capitalize">
+                  <p className="mt-1 text-xs text-gray-500">
                     Referente a {monthRangeLabel(billInfo.prevDate, billInfo.currDate)}
                   </p>
                 ) : (
