@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { Zap } from 'lucide-react'
 import { getMonthlyEntries, generateMonthEntries } from '../services/monthlyEntriesService'
 import { MonthlyEntryCard } from './MonthlyEntryCard'
-
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
 
@@ -34,13 +35,18 @@ function toReferenceMonth(month: number, year: number) {
   return `${year}-${String(month).padStart(2, '0')}-01`
 }
 
-export function MonthlyEntryList() {
+interface Props {
+  initialMonth?: number
+  initialYear?: number
+}
+
+export function MonthlyEntryList({ initialMonth, initialYear }: Props) {
   const now = new Date()
   const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth()
   const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
 
-  const [month, setMonth] = useState(prevMonth)
-  const [year, setYear] = useState(prevYear)
+  const [month, setMonth] = useState(initialMonth ?? prevMonth)
+  const [year, setYear] = useState(initialYear ?? prevYear)
   const [entries, setEntries] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -82,6 +88,8 @@ export function MonthlyEntryList() {
     }
   }
 
+  const hasEnergyConsumption = entries.some(e => e.contract?.energy_billing_type === 'consumption')
+
   const paid = entries.filter(e => e.is_paid)
   const pending = entries.filter(e => !e.is_paid)
   const totalPaid = paid.reduce((s, e) => s + entryTotal(e), 0)
@@ -113,6 +121,15 @@ export function MonthlyEntryList() {
         >
           {generating ? 'Gerando...' : 'Gerar Cobranças do Mês'}
         </button>
+        {hasEnergyConsumption && (
+          <Link
+            href={`/dashboard/finance/energy?mes=${month}&ano=${year}`}
+            className="flex items-center gap-2 rounded-md border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-slate-500 hover:text-white"
+          >
+            <Zap size={14} />
+            Leituras de energia
+          </Link>
+        )}
       </div>
 
       {error && (

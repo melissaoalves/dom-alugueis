@@ -4,7 +4,15 @@ export const metadata = {
   title: 'Mensalidades | DOM Aluguéis',
 }
 
-export default function FinancePage() {
+export default async function FinancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mes?: string; ano?: string }>
+}) {
+  const params = await searchParams
+  const mes = Number(params.mes)
+  const ano = Number(params.ano)
+
   return (
     <div className="max-w-5xl mx-auto p-6">
       <div className="mb-8">
@@ -13,7 +21,10 @@ export default function FinancePage() {
           Gere as cobranças do mês, registre consumos e marque pagamentos.
         </p>
       </div>
-      <MonthlyEntryList />
+      <MonthlyEntryList
+        initialMonth={mes >= 1 && mes <= 12 ? mes : undefined}
+        initialYear={ano > 2000 ? ano : undefined}
+      />
     </div>
   )
 }

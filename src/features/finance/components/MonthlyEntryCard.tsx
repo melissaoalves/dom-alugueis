@@ -1,12 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, X, QrCode } from 'lucide-react'
+import { Pencil, X, QrCode, Zap } from 'lucide-react'
 import { updateMonthlyEntry, calcLateFees } from '../services/monthlyEntriesService'
 import { BillingSlipModal } from './BillingSlipModal'
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
+
+const fmtKwh = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(v)
+
+const fmtRate = (v: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 4 }).format(v)
 
 const inputClass = "h-9 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600"
 
@@ -19,6 +24,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSlip, setShowSlip] = useState(false)
+  const [showEnergySlip, setShowEnergySlip] = useState(false)
 
   const contract = entry.contract
   const property = entry.property
@@ -52,8 +58,17 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const energyFixed = energyBilling === 'fixed' ? (entry.energy_amount || contract?.energy_value || 0) : 0
   const waterConsumption = waterBilling === 'consumption' ? (Number(water) || 0) : 0
   const energyConsumption = energyBilling === 'consumption' ? (Number(energy) || 0) : 0
+  // Detalhamento da leitura (relógio) — só vale enquanto o valor não for alterado à mão
+  const energyFromReading = entry.energy_kwh != null && energyConsumption === Number(entry.energy_amount)
+  const energyDetail = energyFromReading
+    ? `Leitura ${fmtKwh(entry.energy_prev_reading)} → ${fmtKwh(entry.energy_curr_reading)} · ${fmtKwh(entry.energy_kwh)} kWh × ${fmtRate(entry.energy_kwh_rate)}`
+    : undefined
   const totalValue = rentValue + waterFixed + energyFixed + waterConsumption + energyConsumption +
     (Number(extra) || 0) + (entry.is_paid ? 0 : penalty + interest)
+  // Energia é cobrada à parte (PIX próprio); o boleto de aluguel+água não a inclui
+  const energyTotal = energyFixed + energyConsumption
+  const nonEnergyTotal = totalValue - energyTotal
+  const hasEnergyBill = energyTotal > 0
 
   const handleSave = async (action: 'draft' | 'paid' | 'unpay') => {
     setSaving(true)
@@ -68,6 +83,10 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
           extra_description: extraDesc || undefined,
           notes: notes || undefined,
           waive_late_fees: waiveLateFees,
+          // Valor de energia alterado à mão: o detalhamento da leitura deixa de valer
+          ...(entry.energy_kwh != null && !energyFromReading && {
+            energy_prev_reading: null, energy_curr_reading: null, energy_kwh: null, energy_kwh_rate: null,
+          }),
           ...(action === 'paid' && { is_paid: true, payment_date: paymentDate }),
         })
       }
@@ -107,11 +126,21 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
 
             <button
               onClick={() => setShowSlip(true)}
-              title="Gerar cobrança PIX"
+              title="Boleto do aluguel (aluguel + água)"
               className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 text-slate-400 transition-colors hover:border-slate-500 hover:text-white"
             >
               <QrCode size={13} />
             </button>
+
+            {hasEnergyBill && (
+              <button
+                onClick={() => setShowEnergySlip(true)}
+                title="Conta de energia (PIX separado)"
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-amber-900/50 text-amber-400 transition-colors hover:border-amber-700 hover:text-amber-300"
+              >
+                <Zap size={13} />
+              </button>
+            )}
 
             <button
               onClick={() => setExpanded(v => !v)}
@@ -152,9 +181,12 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             </div>
           )}
           {energyBilling === 'consumption' && energyConsumption > 0 && (
-            <div className="flex justify-between">
-              <span className="text-slate-400">Energia (consumo)</span>
-              <span className="text-white">{fmt(energyConsumption)}</span>
+            <div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Energia (consumo)</span>
+                <span className="text-white">{fmt(energyConsumption)}</span>
+              </div>
+              {energyDetail && <p className="text-xs text-slate-500">{energyDetail}</p>}
             </div>
           )}
           {(Number(extra) || 0) > 0 && (
@@ -216,6 +248,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-400">Energia — consumo (R$)</label>
                   <input type="number" step="0.01" value={energy} onChange={e => setEnergy(e.target.value)} placeholder="0,00" className={inputClass} />
+                  <p className="mt-1 text-xs text-slate-600">Calculado na página Leituras de energia. Ajuste aqui só se precisar.</p>
                 </div>
               )}
             </div>
@@ -285,21 +318,41 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
         </div>
       )}
 
+      {/* Boleto do aluguel — aluguel + água + extras (energia vai à parte) */}
       {showSlip && (
         <BillingSlipModal
           entry={entry}
-          totalValue={totalValue}
+          totalValue={nonEnergyTotal}
           lines={[
             { label: 'Aluguel', value: rentValue },
             ...(waterFixed > 0 ? [{ label: 'Água (fixo)', value: waterFixed }] : []),
-            ...(energyFixed > 0 ? [{ label: 'Energia (fixo)', value: energyFixed }] : []),
             ...(waterConsumption > 0 ? [{ label: 'Água (consumo)', value: waterConsumption }] : []),
-            ...(energyConsumption > 0 ? [{ label: 'Energia (consumo)', value: energyConsumption }] : []),
             ...((Number(extra) || 0) > 0 ? [{ label: extraDesc || 'Extra', value: Number(extra) }] : []),
             ...(isLate && (penalty + interest) > 0 ? [{ label: 'Multa + Juros', value: penalty + interest }] : []),
-            { label: 'Total', value: totalValue, highlight: true },
+            { label: 'Total', value: nonEnergyTotal, highlight: true },
           ]}
           onClose={() => setShowSlip(false)}
+        />
+      )}
+
+      {/* Conta de energia — PIX e valor próprios */}
+      {showEnergySlip && (
+        <BillingSlipModal
+          entry={entry}
+          title="Conta de Energia"
+          docType="energia"
+          totalValue={energyTotal}
+          lines={[
+            { label: 'Energia', value: energyTotal },
+            { label: 'Total', value: energyTotal, highlight: true },
+          ]}
+          energy={energyFromReading ? {
+            prevReading: Number(entry.energy_prev_reading),
+            currReading: Number(entry.energy_curr_reading),
+            kwh: Number(entry.energy_kwh),
+            rate: Number(entry.energy_kwh_rate),
+          } : undefined}
+          onClose={() => setShowEnergySlip(false)}
         />
       )}
     </div>

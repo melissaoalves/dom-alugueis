@@ -57,6 +57,18 @@ src/
 - `contracts.pix_key_guarantee` armazena a chave Pix usada para cobrar o inquilino daquele contrato.
 - O `MonthlyEntryCard` oferece um botão que abre o `BillingSlipModal`, exibindo o detalhamento da cobrança do mês e um QR Code Pix (padrão BR Code, gerado em `src/features/finance/utils/pixPayload.ts`) para pagamento direto pelo inquilino, com opção de copiar o código "copia e cola" e baixar o comprovante como imagem.
 
+### 4.6. Leitura de Energia (kWh)
+- Energia é solar; o inquilino paga ao proprietário **apenas o consumo** (sem taxa mínima), com **uma tarifa única** (R$/kWh) para todos os imóveis, salva em `profiles.energy_kwh_rate`.
+- Cada apartamento tem relógio próprio. A tabela `energy_readings` guarda o histórico do valor acumulado do relógio **por imóvel** (não por contrato — sobrevive à troca de inquilino).
+- Fluxo: página `/dashboard/finance/energy` (`EnergyReadingList`; acessível pelo menu "Energia" e pelo botão "Leituras de energia" em Mensalidades) lista, uma linha por apartamento, os contratos com `energy_billing_type = 'consumption'` do mês, com filtro pendentes/lançadas e busca; informa-se a leitura atual e o sistema calcula `(atual − anterior) × tarifa` e grava em `monthly_entries.energy_amount`.
+- Uma leitura por mês de referência (sem separar meses): a leitura feita hoje fatura todo o consumo desde a leitura anterior. Apartamento sem leitura anterior mostra um campo "Inicial" editável que começa em 0 — ao salvar, o sistema cria automaticamente a leitura inicial (datada no 1º dia do mês de referência) e não exige passo separado.
+- Troca de relógio é registrada à parte (valor + data), no painel expandido de cada linha, e não gera cobrança. O botão de excluir leitura inicial/troca usa confirmação inline (o navegador do app bloqueia `window.confirm`).
+- O botão "Salvar leituras" fica habilitado só com a tarifa preenchida e ao menos uma leitura atual digitada; a dica ao lado do botão informa o que falta.
+- A energia é uma **cobrança separada, com PIX e valor próprios** (só o consumo), distinta do boleto de aluguel+água. O `MonthlyEntryCard` tem dois botões: QR Code (boleto aluguel+água, sem energia) e Zap (conta de energia). O `BillingSlipModal` é reaproveitado com `title`/`docType`; na conta de energia inclui o demonstrativo (leituras, período, kWh, tarifa, histórico de 6 meses e emitente). Ambos usam a mesma chave PIX do contrato (`pix_key_guarantee`). Obs.: `monthly_entries.is_paid` ainda marca o lançamento inteiro — não há controle de pagamento separado por conta (energia vs aluguel) ainda.
+- `monthly_entries.energy_prev_reading / energy_curr_reading / energy_kwh / energy_kwh_rate` são um **snapshot** do que foi faturado (mudar a tarifa depois não altera cobranças antigas). Se o valor de energia for alterado à mão no card, o snapshot é limpo.
+- `energy_readings.kind`: `regular` (faturada, ligada a `monthly_entry_id`), `initial` (primeira leitura do imóvel, sem cobrança), `meter_reset` (troca de relógio — nova base, sem cobrança).
+- Leitura atual menor que a anterior é bloqueada. Na rescisão, basta lançar a leitura final na mensalidade proporcional do mês — consumo exato, sem pró-rata.
+
 ### 4.5. Despesas Agendadas
 - Despesas com `due_date` e `is_settled = false` são "agendadas" (pendentes).
 - Despesas normais têm `is_settled = true` (default).

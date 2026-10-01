@@ -31,6 +31,7 @@ export default function DashboardLayout({
               <Link href="/dashboard/tenants" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Inquilinos</Link>
               <Link href="/dashboard/contracts" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Contratos</Link>
               <Link href="/dashboard/finance" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Mensalidades</Link>
+              <Link href="/dashboard/finance/energy" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Energia</Link>
               <Link href="/dashboard/finance/expenses" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Despesas</Link>
             </div>
           </div>

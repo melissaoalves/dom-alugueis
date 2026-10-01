@@ -54,6 +54,7 @@ export interface Profile extends AddressFields {
   marital_status?: string
   occupation?: string
   address?: string     // legado — mantido para exibição
+  energy_kwh_rate?: number | null  // tarifa padrão R$/kWh cobrada dos inquilinos
 }
 
 export interface Property extends AddressFields {
@@ -148,4 +149,22 @@ export interface MonthlyEntry {
   payment_date?: string
   notes?: string
   waive_late_fees?: boolean
+  // Detalhamento da leitura de energia (snapshot do que foi faturado)
+  energy_prev_reading?: number | null
+  energy_curr_reading?: number | null
+  energy_kwh?: number | null
+  energy_kwh_rate?: number | null
+}
+
+export type EnergyReadingKind = 'regular' | 'initial' | 'meter_reset'
+
+export interface EnergyReading {
+  id: string
+  created_at: string
+  owner_id: string
+  property_id: string
+  monthly_entry_id?: string | null
+  reading_date: string
+  reading_kwh: number
+  kind: EnergyReadingKind
 }
