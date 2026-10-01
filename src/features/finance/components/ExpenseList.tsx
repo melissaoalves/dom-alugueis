@@ -32,6 +32,9 @@ export function ExpenseList() {
   const [scheduled, setScheduled] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // despesa aguardando confirmação de exclusão (inline — o app bloqueia window.confirm)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -53,14 +56,47 @@ export function ExpenseList() {
   useEffect(() => { load() }, [load])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Remover esta despesa?')) return
+    setError(null)
+    setDeleting(true)
     try {
       await deleteExpense(id)
+      setConfirmDeleteId(null)
       await load()
     } catch (err: any) {
       setError(err.message)
+    } finally {
+      setDeleting(false)
     }
   }
+
+  // Botão de excluir com confirmação em dois passos (trash → Excluir/Cancelar)
+  const deleteControl = (id: string) =>
+    confirmDeleteId === id ? (
+      <div className="flex items-center gap-2 text-xs">
+        <button
+          onClick={() => handleDelete(id)}
+          disabled={deleting}
+          className="font-medium text-rose-400 transition-colors hover:text-rose-300 disabled:opacity-50"
+        >
+          Excluir
+        </button>
+        <button
+          onClick={() => setConfirmDeleteId(null)}
+          disabled={deleting}
+          className="text-slate-500 transition-colors hover:text-slate-300 disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    ) : (
+      <button
+        onClick={() => setConfirmDeleteId(id)}
+        title="Remover despesa"
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-800 text-slate-600 transition hover:border-rose-900/50 hover:text-rose-400"
+      >
+        <Trash2 size={13} />
+      </button>
+    )
 
   const handleSettle = async (id: string) => {
     try {
@@ -158,13 +194,7 @@ export function ExpenseList() {
                     >
                       <Pencil size={13} />
                     </Link>
-                    <button
-                      onClick={() => handleDelete(expense.id)}
-                      title="Remover"
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-800 text-slate-600 transition hover:border-rose-900/50 hover:text-rose-400"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {deleteControl(expense.id)}
                   </div>
                 </div>
               )
@@ -223,13 +253,7 @@ export function ExpenseList() {
                   >
                     <Pencil size={13} />
                   </Link>
-                  <button
-                    onClick={() => handleDelete(expense.id)}
-                    title="Remover despesa"
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-800 text-slate-600 transition hover:border-rose-900/50 hover:text-rose-400"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  {deleteControl(expense.id)}
                 </div>
               </div>
             ))}
