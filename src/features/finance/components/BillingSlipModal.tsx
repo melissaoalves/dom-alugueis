@@ -54,18 +54,19 @@ const MONTH_NAMES = [
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
 ]
 
-// Meses cobertos entre start e end (exclui o dia final): 25/08 → 01/10 = "agosto e setembro"
-function monthRangeLabel(start: string, end: string): string {
-  const s = new Date(start + 'T00:00:00')
-  const e = new Date(end + 'T00:00:00')
-  e.setDate(e.getDate() - 1)
+// Meses cobertos, do mês da leitura inicial até o mês de referência da conta (inclusive).
+// Usa o mês de referência (não a data em que o relógio foi lido), para não incluir
+// o mês atual só porque a leitura foi feita alguns dias depois.
+// Ex.: inicial 25/08, referência setembro → "agosto e setembro".
+function monthRangeLabel(start: string, referenceMonth: string): string {
+  const cur = (() => { const d = new Date(start + 'T00:00:00'); return new Date(d.getFullYear(), d.getMonth(), 1) })()
+  const last = (() => { const d = new Date(referenceMonth + 'T00:00:00'); return new Date(d.getFullYear(), d.getMonth(), 1) })()
   const months: string[] = []
-  const cur = new Date(s.getFullYear(), s.getMonth(), 1)
-  while (cur <= e && months.length < 12) {
+  while (cur <= last && months.length < 24) {
     months.push(MONTH_NAMES[cur.getMonth()])
     cur.setMonth(cur.getMonth() + 1)
   }
-  if (months.length === 0) return ''
+  if (months.length === 0) return MONTH_NAMES[last.getMonth()]
   if (months.length === 1) return months[0]
   return `${months.slice(0, -1).join(', ')} e ${months[months.length - 1]}`
 }
@@ -150,7 +151,7 @@ export function BillingSlipModal({ entry, totalValue, lines, energy, title = 'Co
             </p>
             <p className="mt-1 text-lg font-bold text-gray-900">{property?.title ?? '—'}</p>
             <p className="text-sm text-gray-500">{contract?.tenant?.full_name ?? '—'}</p>
-            <p className="mt-1 text-xs text-gray-400 capitalize">{referenceMonth}</p>
+            <p className="mt-1 text-xs text-gray-400">{referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1)}</p>
           </div>
 
           {/* Itens */}
@@ -178,7 +179,7 @@ export function BillingSlipModal({ entry, totalValue, lines, energy, title = 'Co
                 billInfo.prevKind === 'initial' ? (
                   // Primeira leitura (base 0): mostra os meses cobertos, sem as datas
                   <p className="mt-1 text-xs text-gray-500">
-                    Referente a {monthRangeLabel(billInfo.prevDate, billInfo.currDate)}
+                    Referente a {monthRangeLabel(billInfo.prevDate, entry.reference_month)}
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-gray-500">
