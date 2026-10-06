@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Pencil, X, QrCode, Zap } from 'lucide-react'
+import { Pencil, X, QrCode, Zap, FileText } from 'lucide-react'
 import { updateMonthlyEntry, calcLateFees } from '../services/monthlyEntriesService'
 import { BillingSlipModal } from './BillingSlipModal'
 
@@ -25,6 +25,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const [saving, setSaving] = useState(false)
   const [showSlip, setShowSlip] = useState(false)
   const [showEnergySlip, setShowEnergySlip] = useState(false)
+  const [showFullSlip, setShowFullSlip] = useState(false)
 
   const contract = entry.contract
   const property = entry.property
@@ -124,9 +125,19 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
               {entry.is_paid ? 'Pago' : isLate ? `${daysLate}d atraso` : 'Pendente'}
             </span>
 
+            {hasEnergyBill && (
+              <button
+                onClick={() => setShowFullSlip(true)}
+                title="Boleto completo (aluguel + água + energia)"
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 text-slate-400 transition-colors hover:border-slate-500 hover:text-white"
+              >
+                <FileText size={13} />
+              </button>
+            )}
+
             <button
               onClick={() => setShowSlip(true)}
-              title="Boleto do aluguel (aluguel + água)"
+              title={hasEnergyBill ? 'Boleto do aluguel (aluguel + água)' : 'Boleto do aluguel'}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-700 text-slate-400 transition-colors hover:border-slate-500 hover:text-white"
             >
               <QrCode size={13} />
@@ -332,6 +343,33 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             { label: 'Total', value: nonEnergyTotal, highlight: true },
           ]}
           onClose={() => setShowSlip(false)}
+        />
+      )}
+
+      {/* Boleto completo — aluguel + água + energia detalhados, PIX do total */}
+      {showFullSlip && (
+        <BillingSlipModal
+          entry={entry}
+          title="Cobrança Mensal"
+          docType="cobranca-completa"
+          totalValue={totalValue}
+          lines={[
+            { label: 'Aluguel', value: rentValue },
+            ...(waterFixed > 0 ? [{ label: 'Água (fixo)', value: waterFixed }] : []),
+            ...(waterConsumption > 0 ? [{ label: 'Água (consumo)', value: waterConsumption }] : []),
+            ...(energyFixed > 0 ? [{ label: 'Energia (fixo)', value: energyFixed }] : []),
+            ...(energyConsumption > 0 ? [{ label: 'Energia (consumo)', value: energyConsumption }] : []),
+            ...((Number(extra) || 0) > 0 ? [{ label: extraDesc || 'Extra', value: Number(extra) }] : []),
+            ...(isLate && (penalty + interest) > 0 ? [{ label: 'Multa + Juros', value: penalty + interest }] : []),
+            { label: 'Total', value: totalValue, highlight: true },
+          ]}
+          energy={energyFromReading ? {
+            prevReading: Number(entry.energy_prev_reading),
+            currReading: Number(entry.energy_curr_reading),
+            kwh: Number(entry.energy_kwh),
+            rate: Number(entry.energy_kwh_rate),
+          } : undefined}
+          onClose={() => setShowFullSlip(false)}
         />
       )}
 
