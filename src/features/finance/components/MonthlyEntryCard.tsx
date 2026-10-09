@@ -73,13 +73,14 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
 
   // Pagamento separado: is_paid = aluguel+água; energy_paid = energia
   const aluguelPaid: boolean = entry.is_paid
-  const settledByCaucao: boolean = !!entry.settled_by_caucao  // aluguel+água quitado com caução (não é "recebido")
+  // Valor do aluguel+água quitado com o caução (não conta como recebido). Pode ser parcial.
+  const caucaoAmount = Math.min(Math.max(Number(entry.caucao_amount) || 0, 0), nonEnergyTotal)
+  const settledByCaucao = caucaoAmount > 0
   const energyPaid: boolean = !!entry.energy_paid
   const fullyPaid = aluguelPaid && (!hasEnergyBill || energyPaid)
-  const partiallyPaid = !fullyPaid && (aluguelPaid || (hasEnergyBill && energyPaid))
+  const partiallyPaid = !fullyPaid && (aluguelPaid || settledByCaucao || (hasEnergyBill && energyPaid))
 
   // Quitado com caução não é "a receber": sai do total exibido como valor a cobrar
-  const caucaoAmount = settledByCaucao ? nonEnergyTotal : 0
   const displayTotal = totalValue - caucaoAmount
 
   const status = fullyPaid
@@ -98,7 +99,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
     setSaving(true)
     try {
       if (action === 'unpay-aluguel') {
-        await updateMonthlyEntry(entry.id, { is_paid: false, settled_by_caucao: false, payment_date: null })
+        await updateMonthlyEntry(entry.id, { is_paid: false, settled_by_caucao: false, caucao_amount: 0, payment_date: null })
       } else if (action === 'unpay-energy') {
         await updateMonthlyEntry(entry.id, { energy_paid: false, energy_payment_date: null })
       } else {
@@ -113,8 +114,8 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
           ...(entry.energy_kwh != null && !energyFromReading && {
             energy_prev_reading: null, energy_curr_reading: null, energy_kwh: null, energy_kwh_rate: null,
           }),
-          ...(action === 'pay-aluguel' && { is_paid: true, settled_by_caucao: false, payment_date: paymentDate }),
-          ...(action === 'settle-aluguel' && { is_paid: true, settled_by_caucao: true, payment_date: paymentDate }),
+          ...(action === 'pay-aluguel' && { is_paid: true, settled_by_caucao: false, caucao_amount: 0, payment_date: paymentDate }),
+          ...(action === 'settle-aluguel' && { is_paid: true, settled_by_caucao: true, caucao_amount: nonEnergyTotal, payment_date: paymentDate }),
           ...(action === 'pay-energy' && { energy_paid: true, energy_payment_date: energyPaymentDate }),
         })
       }
@@ -381,12 +382,15 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
         </div>
       )}
 
-      {!expanded && (aluguelPaid || energyPaid || entry.notes) && (
+      {!expanded && (aluguelPaid || settledByCaucao || energyPaid || entry.notes) && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-t border-slate-800 px-4 py-2 text-xs text-slate-500">
           {aluguelPaid && (
             <span className={settledByCaucao ? 'text-indigo-300/80' : undefined}>
               {hasEnergyBill ? 'Aluguel' : 'Mensalidade'} {settledByCaucao ? 'quitado c/ caução' : 'pago'} em {fmtDate(entry.payment_date)}
             </span>
+          )}
+          {!aluguelPaid && settledByCaucao && (
+            <span className="text-indigo-300/80">{fmt(caucaoAmount)} quitado c/ caução · falta {fmt(nonEnergyTotal - caucaoAmount)}</span>
           )}
           {hasEnergyBill && energyPaid && <span>Energia paga em {fmtDate(entry.energy_payment_date)}</span>}
           {hasEnergyBill && aluguelPaid && !energyPaid && <span className="text-amber-500/80">Energia pendente</span>}

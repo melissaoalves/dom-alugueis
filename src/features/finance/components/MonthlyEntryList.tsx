@@ -32,21 +32,24 @@ function entryEnergy(e: any): number {
     : eb === 'consumption' ? (e.energy_amount || 0) : 0
 }
 
-// Valor recebido do lançamento (aluguel+água e energia à parte).
-// "Quitado com caução" fica quitado mas NÃO conta como recebido (o caução já foi receita).
-function entryReceived(e: any): number {
-  const energy = entryEnergy(e)
-  const nonEnergy = entryTotal(e) - energy
-  const nonEnergyReceived = (e.is_paid && !e.settled_by_caucao) ? nonEnergy : 0
-  return nonEnergyReceived + (e.energy_paid ? energy : 0)
+// Parte do aluguel+água quitada com o caução (não conta como recebido nem a receber)
+function entryCaucao(e: any): number {
+  const nonEnergy = entryTotal(e) - entryEnergy(e)
+  return Math.min(Math.max(Number(e.caucao_amount) || 0, 0), nonEnergy)
 }
 
-// Valor ainda a receber (aluguel+água quitado com caução não é "a receber" nem "recebido")
+// Valor recebido do lançamento (aluguel+água e energia à parte); exclui o que veio do caução.
+function entryReceived(e: any): number {
+  const energy = entryEnergy(e)
+  const tenantOwedNonEnergy = (entryTotal(e) - energy) - entryCaucao(e)
+  return (e.is_paid ? tenantOwedNonEnergy : 0) + (e.energy_paid ? energy : 0)
+}
+
+// Valor ainda a receber do inquilino (exclui a parte quitada com caução)
 function entryPending(e: any): number {
   const energy = entryEnergy(e)
-  const nonEnergy = entryTotal(e) - energy
-  const nonEnergyPending = (e.is_paid || e.settled_by_caucao) ? 0 : nonEnergy
-  return nonEnergyPending + (e.energy_paid ? 0 : energy)
+  const tenantOwedNonEnergy = (entryTotal(e) - energy) - entryCaucao(e)
+  return (e.is_paid ? 0 : tenantOwedNonEnergy) + (e.energy_paid ? 0 : energy)
 }
 
 const MONTHS = [

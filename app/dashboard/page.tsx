@@ -20,6 +20,7 @@ function lastDayOf(year: number, month: number) {
 interface EntryWithContract {
   is_paid: boolean
   settled_by_caucao?: boolean | null
+  caucao_amount?: number | null
   energy_paid?: boolean | null
   due_date: string
   rent_value?: number | null
@@ -51,21 +52,24 @@ function calcTotal(e: EntryWithContract): number {
   return rent + water + energyPart(e) + (e.extra_amount || 0)
 }
 
-// Valor efetivamente recebido: aluguel+água (is_paid) e energia (energy_paid) à parte.
-// "Quitado com caução" fica quitado mas não conta como recebido (o caução já foi receita).
-function receivedPart(e: EntryWithContract): number {
-  const energy = energyPart(e)
-  const nonEnergy = calcTotal(e) - energy
-  const nonEnergyReceived = (e.is_paid && !e.settled_by_caucao) ? nonEnergy : 0
-  return nonEnergyReceived + (e.energy_paid ? energy : 0)
+// Parte do aluguel+água quitada com caução (não conta como recebido nem a receber)
+function caucaoPart(e: EntryWithContract): number {
+  const nonEnergy = calcTotal(e) - energyPart(e)
+  return Math.min(Math.max(Number(e.caucao_amount) || 0, 0), nonEnergy)
 }
 
-// Valor ainda a receber (quitado com caução não é "a receber" nem "recebido")
+// Valor efetivamente recebido: aluguel+água (is_paid) e energia (energy_paid) à parte; exclui o caução.
+function receivedPart(e: EntryWithContract): number {
+  const energy = energyPart(e)
+  const tenantOwedNonEnergy = (calcTotal(e) - energy) - caucaoPart(e)
+  return (e.is_paid ? tenantOwedNonEnergy : 0) + (e.energy_paid ? energy : 0)
+}
+
+// Valor ainda a receber do inquilino (exclui a parte quitada com caução)
 function pendingPart(e: EntryWithContract): number {
   const energy = energyPart(e)
-  const nonEnergy = calcTotal(e) - energy
-  const nonEnergyPending = (e.is_paid || e.settled_by_caucao) ? 0 : nonEnergy
-  return nonEnergyPending + (e.energy_paid ? 0 : energy)
+  const tenantOwedNonEnergy = (calcTotal(e) - energy) - caucaoPart(e)
+  return (e.is_paid ? 0 : tenantOwedNonEnergy) + (e.energy_paid ? 0 : energy)
 }
 
 async function DashboardContent({ month, year }: { month: number; year: number }) {
@@ -108,7 +112,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     supabase.from('profiles').select('first_name').eq('id', user.id).single(),
 
     supabase.from('monthly_entries')
-      .select('is_paid, settled_by_caucao, energy_paid, due_date, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('is_paid, settled_by_caucao, caucao_amount, energy_paid, due_date, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .gte('due_date', firstDay)
       .lte('due_date', lastDay),
@@ -140,7 +144,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .order('end_date', { ascending: true }),
 
     supabase.from('monthly_entries')
-      .select('due_date, is_paid, settled_by_caucao, energy_paid, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('due_date, is_paid, settled_by_caucao, caucao_amount, energy_paid, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .gte('due_date', chartStart)
       .lte('due_date', chartEnd),

@@ -147,7 +147,8 @@ export interface MonthlyEntry {
   extra_description?: string
   is_paid: boolean            // pagamento do aluguel + água
   payment_date?: string
-  settled_by_caucao?: boolean // aluguel+água quitado com o caução (não conta como recebido)
+  settled_by_caucao?: boolean // (legado) substituído por caucao_amount
+  caucao_amount?: number | null // valor do aluguel+água quitado com o caução (0 = nenhum)
   energy_paid?: boolean       // pagamento da energia (separado)
   energy_payment_date?: string | null
   notes?: string
