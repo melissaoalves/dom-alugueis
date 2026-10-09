@@ -44,9 +44,9 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const [extra, setExtra] = useState(entry.extra_amount ?? '')
   const [extraDesc, setExtraDesc] = useState(entry.extra_description ?? '')
   const [notes, setNotes] = useState(entry.notes ?? '')
-  const [paymentDate, setPaymentDate] = useState(
-    entry.payment_date ?? new Date().toISOString().split('T')[0]
-  )
+  const today = new Date().toISOString().split('T')[0]
+  const [paymentDate, setPaymentDate] = useState(entry.payment_date ?? today)
+  const [energyPaymentDate, setEnergyPaymentDate] = useState(entry.energy_payment_date ?? today)
   const [waiveLateFees, setWaiveLateFees] = useState(entry.waive_late_fees ?? false)
 
   const { penalty, interest, daysLate } = entry.is_paid
@@ -71,11 +71,31 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const nonEnergyTotal = totalValue - energyTotal
   const hasEnergyBill = energyTotal > 0
 
-  const handleSave = async (action: 'draft' | 'paid' | 'unpay') => {
+  // Pagamento separado: is_paid = aluguel+água; energy_paid = energia
+  const aluguelPaid: boolean = entry.is_paid
+  const energyPaid: boolean = !!entry.energy_paid
+  const fullyPaid = aluguelPaid && (!hasEnergyBill || energyPaid)
+  const partiallyPaid = !fullyPaid && (aluguelPaid || (hasEnergyBill && energyPaid))
+
+  const status = fullyPaid
+    ? { text: 'Pago', badge: 'bg-emerald-900/40 text-emerald-400', dot: 'bg-emerald-400', border: 'border-emerald-900/50' }
+    : partiallyPaid
+    ? { text: 'Parcial', badge: 'bg-indigo-900/40 text-indigo-300', dot: 'bg-indigo-400', border: 'border-indigo-900/50' }
+    : isLate
+    ? { text: `${daysLate}d atraso`, badge: 'bg-rose-900/40 text-rose-400', dot: 'bg-rose-400', border: 'border-rose-900/50' }
+    : { text: 'Pendente', badge: 'bg-yellow-900/40 text-yellow-400', dot: 'bg-yellow-400', border: 'border-slate-800' }
+
+  const fmtDate = (d?: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—'
+
+  type SaveAction = 'draft' | 'pay-aluguel' | 'unpay-aluguel' | 'pay-energy' | 'unpay-energy'
+
+  const handleSave = async (action: SaveAction, collapse = true) => {
     setSaving(true)
     try {
-      if (action === 'unpay') {
+      if (action === 'unpay-aluguel') {
         await updateMonthlyEntry(entry.id, { is_paid: false, payment_date: null })
+      } else if (action === 'unpay-energy') {
+        await updateMonthlyEntry(entry.id, { energy_paid: false, energy_payment_date: null })
       } else {
         await updateMonthlyEntry(entry.id, {
           water_amount: waterBilling === 'consumption' && water !== '' ? Number(water) : undefined,
@@ -88,29 +108,24 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
           ...(entry.energy_kwh != null && !energyFromReading && {
             energy_prev_reading: null, energy_curr_reading: null, energy_kwh: null, energy_kwh_rate: null,
           }),
-          ...(action === 'paid' && { is_paid: true, payment_date: paymentDate }),
+          ...(action === 'pay-aluguel' && { is_paid: true, payment_date: paymentDate }),
+          ...(action === 'pay-energy' && { energy_paid: true, energy_payment_date: energyPaymentDate }),
         })
       }
       onUpdate()
-      setExpanded(false)
+      if (collapse) setExpanded(false)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className={`rounded-lg border bg-slate-900 transition-colors ${
-      entry.is_paid ? 'border-emerald-900/50' :
-      isLate ? 'border-rose-900/50' : 'border-slate-800'
-    }`}>
+    <div className={`rounded-lg border bg-slate-900 transition-colors ${status.border}`}>
       {/* Cabeçalho */}
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${
-              entry.is_paid ? 'bg-emerald-400' :
-              isLate ? 'bg-rose-400' : 'bg-yellow-400'
-            }`} />
+            <span className={`h-2 w-2 shrink-0 rounded-full ${status.dot}`} />
             <div>
               <p className="font-medium text-white">{property?.title ?? '—'}</p>
               <p className="text-xs text-slate-400">{contract?.tenant?.full_name ?? '—'}</p>
@@ -118,11 +133,8 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              entry.is_paid ? 'bg-emerald-900/40 text-emerald-400' :
-              isLate ? 'bg-rose-900/40 text-rose-400' : 'bg-yellow-900/40 text-yellow-400'
-            }`}>
-              {entry.is_paid ? 'Pago' : isLate ? `${daysLate}d atraso` : 'Pendente'}
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.badge}`}>
+              {status.text}
             </span>
 
             {hasEnergyBill && (
@@ -276,56 +288,90 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">Data do pagamento</label>
-              <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">Observações</label>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anotações opcionais..." className={inputClass} />
-            </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-400">Observações</label>
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anotações opcionais..." className={inputClass} />
           </div>
 
-          <div className="flex items-center justify-between border-t border-slate-800 pt-3">
-            <p className="text-sm text-slate-400">
-              Total: <span className="font-semibold text-white">{fmt(totalValue)}</span>
+          <div className="flex justify-end border-t border-slate-800 pt-3">
+            <button onClick={() => handleSave('draft')} disabled={saving}
+              className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:text-white disabled:opacity-50">
+              {saving ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+
+          {/* Pagamentos — aluguel+água e energia marcados separadamente */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+              {hasEnergyBill ? 'Pagamentos' : 'Pagamento'}
             </p>
-            <div className="flex gap-2">
-              {entry.is_paid ? (
-                <>
-                  <button onClick={() => handleSave('unpay')} disabled={saving}
-                    className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition hover:border-rose-900/50 hover:text-rose-400 disabled:opacity-50">
-                    Desfazer pagamento
+
+            {/* Aluguel + Água */}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-950 p-3">
+              <div>
+                <p className="text-sm text-white">{hasEnergyBill ? 'Aluguel + Água' : 'Mensalidade'}</p>
+                <p className="text-xs text-slate-500">{fmt(nonEnergyTotal)}</p>
+              </div>
+              {aluguelPaid ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-emerald-400">Pago em {fmtDate(entry.payment_date)}</span>
+                  <button onClick={() => handleSave('unpay-aluguel')} disabled={saving}
+                    className="rounded-md border border-slate-700 px-2.5 py-1 text-xs text-slate-400 transition hover:border-rose-900/50 hover:text-rose-400 disabled:opacity-50">
+                    Desfazer
                   </button>
-                  <button onClick={() => handleSave('draft')} disabled={saving}
-                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50">
-                    {saving ? 'Salvando...' : 'Salvar alterações'}
-                  </button>
-                </>
+                </div>
               ) : (
-                <>
-                  <button onClick={() => handleSave('draft')} disabled={saving}
-                    className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:text-white disabled:opacity-50">
-                    Salvar rascunho
-                  </button>
-                  <button onClick={() => handleSave('paid')} disabled={saving}
+                <div className="flex items-center gap-2">
+                  <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+                    className="h-8 rounded-md border border-slate-800 bg-slate-900 px-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-600" />
+                  <button onClick={() => handleSave('pay-aluguel')} disabled={saving}
                     className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-600 disabled:opacity-50">
-                    {saving ? 'Salvando...' : 'Marcar como Pago'}
+                    Marcar pago
                   </button>
-                </>
+                </div>
               )}
             </div>
+
+            {/* Energia */}
+            {hasEnergyBill && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-950 p-3">
+                <div>
+                  <p className="text-sm text-white">Energia</p>
+                  <p className="text-xs text-slate-500">{fmt(energyTotal)}</p>
+                </div>
+                {energyPaid ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-emerald-400">Pago em {fmtDate(entry.energy_payment_date)}</span>
+                    <button onClick={() => handleSave('unpay-energy')} disabled={saving}
+                      className="rounded-md border border-slate-700 px-2.5 py-1 text-xs text-slate-400 transition hover:border-rose-900/50 hover:text-rose-400 disabled:opacity-50">
+                      Desfazer
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input type="date" value={energyPaymentDate} onChange={e => setEnergyPaymentDate(e.target.value)}
+                      className="h-8 rounded-md border border-slate-800 bg-slate-900 px-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-600" />
+                    <button onClick={() => handleSave('pay-energy')} disabled={saving}
+                      className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-600 disabled:opacity-50">
+                      Marcar pago
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {entry.is_paid && !expanded && (
-        <div className="border-t border-slate-800 px-4 py-2 text-xs text-slate-500">
-          Pago em {entry.payment_date
-            ? new Date(entry.payment_date + 'T00:00:00').toLocaleDateString('pt-BR')
-            : '—'}
-          {entry.notes && <span className="ml-2 text-slate-600">· {entry.notes}</span>}
+      {!expanded && (aluguelPaid || energyPaid || entry.notes) && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-t border-slate-800 px-4 py-2 text-xs text-slate-500">
+          {aluguelPaid && (
+            <span>{hasEnergyBill ? 'Aluguel' : 'Pago'} {hasEnergyBill ? 'pago ' : ''}em {fmtDate(entry.payment_date)}</span>
+          )}
+          {hasEnergyBill && energyPaid && <span>Energia paga em {fmtDate(entry.energy_payment_date)}</span>}
+          {hasEnergyBill && aluguelPaid && !energyPaid && <span className="text-amber-500/80">Energia pendente</span>}
+          {hasEnergyBill && !aluguelPaid && energyPaid && <span className="text-amber-500/80">Aluguel pendente</span>}
+          {entry.notes && <span className="text-slate-600">· {entry.notes}</span>}
         </div>
       )}
 

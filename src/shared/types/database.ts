@@ -145,8 +145,10 @@ export interface MonthlyEntry {
   energy_amount?: number
   extra_amount?: number
   extra_description?: string
-  is_paid: boolean
+  is_paid: boolean            // pagamento do aluguel + água
   payment_date?: string
+  energy_paid?: boolean       // pagamento da energia (separado)
+  energy_payment_date?: string | null
   notes?: string
   waive_late_fees?: boolean
   // Detalhamento da leitura de energia (snapshot do que foi faturado)

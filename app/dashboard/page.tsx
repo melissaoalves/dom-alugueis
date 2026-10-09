@@ -19,6 +19,7 @@ function lastDayOf(year: number, month: number) {
 
 interface EntryWithContract {
   is_paid: boolean
+  energy_paid?: boolean | null
   due_date: string
   rent_value?: number | null
   water_amount: number | null
@@ -34,16 +35,26 @@ interface EntryWithContract {
   } | null
 }
 
+function energyPart(e: EntryWithContract): number {
+  const eb = e.contract?.energy_billing_type ?? 'not_included'
+  return eb === 'fixed' ? (e.energy_amount || e.contract?.energy_value || 0)
+    : eb === 'consumption' ? (e.energy_amount || 0) : 0
+}
+
 function calcTotal(e: EntryWithContract): number {
   const c = e.contract
   const rent = e.rent_value !== undefined && e.rent_value !== null ? e.rent_value : (c?.rent_value ?? 0)
   const wb = c?.water_billing_type ?? 'not_included'
-  const eb = c?.energy_billing_type ?? 'not_included'
   const water = wb === 'fixed' ? (e.water_amount || c?.water_value || 0)
     : wb === 'consumption' ? (e.water_amount || 0) : 0
-  const energy = eb === 'fixed' ? (e.energy_amount || c?.energy_value || 0)
-    : eb === 'consumption' ? (e.energy_amount || 0) : 0
-  return rent + water + energy + (e.extra_amount || 0)
+  return rent + water + energyPart(e) + (e.extra_amount || 0)
+}
+
+// Valor efetivamente recebido: aluguel+água (is_paid) e energia (energy_paid) contados à parte
+function receivedPart(e: EntryWithContract): number {
+  const energy = energyPart(e)
+  const nonEnergy = calcTotal(e) - energy
+  return (e.is_paid ? nonEnergy : 0) + (e.energy_paid ? energy : 0)
 }
 
 async function DashboardContent({ month, year }: { month: number; year: number }) {
@@ -86,7 +97,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     supabase.from('profiles').select('first_name').eq('id', user.id).single(),
 
     supabase.from('monthly_entries')
-      .select('is_paid, due_date, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('is_paid, energy_paid, due_date, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .gte('due_date', firstDay)
       .lte('due_date', lastDay),
@@ -118,9 +129,8 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .order('end_date', { ascending: true }),
 
     supabase.from('monthly_entries')
-      .select('due_date, is_paid, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('due_date, is_paid, energy_paid, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
-      .eq('is_paid', true)
       .gte('due_date', chartStart)
       .lte('due_date', chartEnd),
 
@@ -157,12 +167,12 @@ async function DashboardContent({ month, year }: { month: number; year: number }
 
   // Cálculos financeiros do mês selecionado
   const entries = (monthEntries ?? []) as unknown as EntryWithContract[]
-  const paid = entries.filter(e => e.is_paid)
-  const pending = entries.filter(e => !e.is_paid)
-  const totalRent = paid.reduce((s, e) => s + calcTotal(e), 0)
+  const totalRent = entries.reduce((s, e) => s + receivedPart(e), 0)
   const totalCaucao = (monthCaucao ?? []).reduce((s, c) => s + (c.guarantee_amount ?? 0), 0)
   const totalReceived = totalRent + totalCaucao
-  const totalPending = pending.reduce((s, e) => s + calcTotal(e), 0)
+  const totalPending = entries.reduce((s, e) => s + (calcTotal(e) - receivedPart(e)), 0)
+  const pendingCount = entries.filter(e => calcTotal(e) - receivedPart(e) > 0.001).length
+  const paidCount = entries.filter(e => calcTotal(e) - receivedPart(e) <= 0.001).length
   const totalExpenses = (monthExpenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
   const netProfit = totalReceived - totalExpenses
   const vacantProperties = (totalProperties ?? 0) - (activeContracts ?? 0)
@@ -179,7 +189,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     const mCaucao = (chartCaucao ?? [])
       .filter((c: { start_date: string; guarantee_amount: number }) => c.start_date >= start && c.start_date <= end)
 
-    const received = mEntries.reduce((s, e) => s + calcTotal(e), 0)
+    const received = mEntries.reduce((s, e) => s + receivedPart(e), 0)
       + mCaucao.reduce((s: number, c: { start_date: string; guarantee_amount: number }) => s + (c.guarantee_amount ?? 0), 0)
     const expenses = mExpenses.reduce((s: number, e: { date: string; amount: number }) => s + (e.amount ?? 0), 0)
 
@@ -220,13 +230,13 @@ async function DashboardContent({ month, year }: { month: number; year: number }
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-5">
             <p className="text-xs text-slate-400">A receber</p>
             <p className="mt-2 text-2xl font-bold text-white">{fmt(totalPending)}</p>
-            <p className="mt-1 text-xs text-slate-500">{pending.length} cobrança(s)</p>
+            <p className="mt-1 text-xs text-slate-500">{pendingCount} cobrança(s)</p>
           </div>
           <div className="rounded-lg border border-emerald-900/50 bg-emerald-900/10 p-5">
             <p className="text-xs text-emerald-400">Recebido</p>
             <p className="mt-2 text-2xl font-bold text-emerald-300">{fmt(totalReceived)}</p>
             <p className="mt-1 text-xs text-slate-500">
-              {paid.length} pago(s){totalCaucao > 0 ? ` · caução incluída` : ''}
+              {paidCount} pago(s){totalCaucao > 0 ? ` · caução incluída` : ''}
             </p>
           </div>
           <div className="rounded-lg border border-rose-900/50 bg-rose-900/10 p-5">
