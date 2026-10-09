@@ -88,7 +88,7 @@ Este arquivo serve como um "ponto de save" do projeto. Ao iniciar uma nova sess�
   2. Atualizar trigger `handle_new_user` (SQL completo em `project-overview.md`)
   3. `ALTER TABLE monthly_entries ADD COLUMN IF NOT EXISTS waive_late_fees boolean NOT NULL DEFAULT false;` (necessário para a opção de isenção de multa/juros por lançamento)
   4. `docs/migrations/2026-10-01-energy-readings.sql` (tabela `energy_readings`, `profiles.energy_kwh_rate` e colunas de leitura em `monthly_entries`) — necessário para "Leituras de energia" em Mensalidades (página `/dashboard/finance/energy`: `EnergyReadingList` + `energyReadingsService`; regras em `context.md` §4.6)
-- Bug de rescisão no `ContractStatusButton`: o cálculo pro-rata ainda usa `calcProRata` que depende de `lastPaidRefMonth`. Se esse valor for null, usa `contractStartDate` como início — pode cobrar meses a mais. **Regra correta**: contar apenas os dias extras entre `due_day` e `end_date` no mês da rescisão (igual ao que foi feito em `generateMonthEntries`). Pendente de unificar a lógica.
+- ~~Bug de rescisão no `ContractStatusButton`: cálculo pro-rata podia cobrar meses a mais.~~ **CORRIGIDO**: `calcProRata` agora cobra apenas os dias extras entre `due_day` e a rescisão no mês da rescisão (0 se o dia da rescisão ≤ `due_day`), seguindo a regra de negócio. Evita contar o mesmo mês duas vezes com o "aluguel em aberto" do abatimento do caução.
 
 ### Fase 6 — Funcionalidades planejadas
 1. **Geração de Contratos em PDF** — exportação automatizada.

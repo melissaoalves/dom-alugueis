@@ -16,6 +16,9 @@ function calcPenalty(type: string, fixedMonths: number, rentValue: number, custo
   return 0
 }
 
+// Proporcional da rescisão = apenas os DIAS EXTRAS entre o vencimento (due_day) e o dia da
+// rescisão, no mês da rescisão. Se a rescisão cai em dia <= due_day, não há dias extras:
+// aquele período já é cobrado como mensalidade (evita contar o mês duas vezes com o "em aberto").
 function calcProRata(
   rescissionDate: string,
   dueDay: number,
@@ -23,46 +26,26 @@ function calcProRata(
   rentValue: number
 ): { amount: number; periodStart: string; periodLabel: string } {
   const [ry, rm, rd] = rescissionDate.split('-').map(Number)
+  const [cy, cmo, cd] = contractStartDate.split('-').map(Number)
 
-  let cycleStartYear = ry
-  let cycleStartMonth = rm
+  // Início do período extra: o vencimento no mês da rescisão.
+  // Se o contrato começou neste mesmo mês, depois do vencimento, começa no início do contrato.
+  let startDay = dueDay
+  if (cy === ry && cmo === rm && cd > dueDay) startDay = cd
 
-  if (rd < dueDay) {
-    if (rm === 1) {
-      cycleStartMonth = 12
-      cycleStartYear = ry - 1
-    } else {
-      cycleStartMonth = rm - 1
-    }
-  }
-
-  // Se o contrato começou depois do início do ciclo, o ciclo começa na data do contrato
-  const contractStart = new Date(contractStartDate + 'T00:00:00')
-  const cycleStart = new Date(cycleStartYear, cycleStartMonth - 1, dueDay)
-  
-  const actualStart = contractStart.getTime() > cycleStart.getTime() ? contractStart : cycleStart
-  const rescission = new Date(ry, rm - 1, rd)
-
-  const diffTime = rescission.getTime() - actualStart.getTime()
-  const daysOccupied = Math.round(diffTime / (1000 * 60 * 60 * 24))
-
-  if (daysOccupied <= 0) {
-    return { amount: 0, periodStart: rescissionDate, periodLabel: 'Sem dias a cobrar' }
+  const extraDays = rd - startDay
+  if (extraDays <= 0) {
+    return { amount: 0, periodStart: rescissionDate, periodLabel: 'Sem dias extras a cobrar' }
   }
 
   // Divisor padrão de 30 dias para cálculo comercial pro-rata
-  const amount = Math.round((daysOccupied / 30) * rentValue * 100) / 100
-  
-  const startDay = actualStart.getDate()
-  const startMonth = actualStart.getMonth() + 1
-  const startYear = actualStart.getFullYear()
-  
-  const label = `${pad(startDay)}/${pad(startMonth)}/${startYear} a ${pad(rd)}/${pad(rm)}/${ry} (${daysOccupied} dias)`
+  const amount = Math.round((extraDays / 30) * rentValue * 100) / 100
+  const label = `${pad(startDay)}/${pad(rm)}/${ry} a ${pad(rd)}/${pad(rm)}/${ry} (${extraDays} dias)`
 
-  return { 
-    amount, 
-    periodStart: `${startYear}-${pad(startMonth)}-${pad(startDay)}`, 
-    periodLabel: label 
+  return {
+    amount,
+    periodStart: `${ry}-${pad(rm)}-${pad(startDay)}`,
+    periodLabel: label,
   }
 }
 
