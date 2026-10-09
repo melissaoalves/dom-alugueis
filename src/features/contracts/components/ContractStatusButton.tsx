@@ -208,8 +208,10 @@ export function ContractStatusButton({ contract }: Props) {
               energy_amount: hasEnergy ? proRataEnergy : null,
               extra_amount: chargePenaltyToTenant ? penalty : null,
               extra_description: chargePenaltyToTenant ? 'Multa rescisória' : null,
-              // Caução cobre aluguel + água; energia fica à parte (energy_paid)
+              // Caução cobre aluguel + água; energia fica à parte (energy_paid).
+              // settled_by_caucao: quitado, mas não conta como recebido (caução já foi receita).
               is_paid: payRentWithCaucao,
+              settled_by_caucao: payRentWithCaucao,
               payment_date: payRentWithCaucao ? rescissionDate : null,
               energy_paid: false,
               energy_payment_date: null,
@@ -224,7 +226,7 @@ export function ContractStatusButton({ contract }: Props) {
       if (payRentWithCaucao && outstanding.ids.length > 0) {
         const { error: settleErr } = await supabase
           .from('monthly_entries')
-          .update({ is_paid: true, payment_date: rescissionDate, notes: 'Aluguel/água quitado com o caução' })
+          .update({ is_paid: true, settled_by_caucao: true, payment_date: rescissionDate, notes: 'Aluguel/água quitado com o caução' })
           .in('id', outstanding.ids)
         if (settleErr) throw new Error(`Erro ao quitar aluguel em aberto: ${settleErr.message}`)
       }
