@@ -107,6 +107,8 @@ export function ContractStatusButton({ contract }: Props) {
   const [damages, setDamages] = useState(0)
   const [applyPenaltyToCaucao, setApplyPenaltyToCaucao] = useState(true)
   const [generateProRata, setGenerateProRata] = useState(true)
+  // Abater o aluguel proporcional do caução: o inquilino não paga, a cobrança já fica quitada
+  const [payRentWithCaucao, setPayRentWithCaucao] = useState(false)
 
   if (contract.status === 'rescindido') return null
 
@@ -134,7 +136,7 @@ export function ContractStatusButton({ contract }: Props) {
   const proRataEnergy = proRataEnergyResult?.amount ?? 0
   const proRata = proRataRent + proRataWater + proRataEnergy
 
-  const caucaoDeductions = (applyPenaltyToCaucao ? penalty : 0) + damages
+  const caucaoDeductions = (applyPenaltyToCaucao ? penalty : 0) + damages + (payRentWithCaucao ? proRata : 0)
   const caucaoBalance = guaranteeAmount - caucaoDeductions
 
   const openModal = async () => {
@@ -171,11 +173,15 @@ export function ContractStatusButton({ contract }: Props) {
 
       if (contractErr) throw new Error(contractErr.message)
 
-      if (generateProRata && proRata > 0) {
+      if ((generateProRata || payRentWithCaucao) && proRata > 0) {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           const [y, m] = rescissionDate.split('-').map(Number)
           const refMonth = `${y}-${pad(m)}-01`
+
+          // Ao abater do caução, a multa não é cobrada do inquilino neste lançamento
+          const chargePenaltyToTenant = penalty > 0 && !applyPenaltyToCaucao && !payRentWithCaucao
+          const hasEnergy = proRataEnergy > 0
 
           const { error: entryErr } = await supabase
             .from('monthly_entries')
@@ -187,11 +193,14 @@ export function ContractStatusButton({ contract }: Props) {
               due_date: rescissionDate,
               rent_value: proRataRent,
               water_amount: proRataWater > 0 ? proRataWater : null,
-              energy_amount: proRataEnergy > 0 ? proRataEnergy : null,
-              extra_amount: penalty > 0 && !applyPenaltyToCaucao ? penalty : null,
-              extra_description: penalty > 0 && !applyPenaltyToCaucao ? 'Multa rescisória' : null,
-              is_paid: false,
-              notes: `Rescisão — ${proRataResult.periodLabel}`,
+              energy_amount: hasEnergy ? proRataEnergy : null,
+              extra_amount: chargePenaltyToTenant ? penalty : null,
+              extra_description: chargePenaltyToTenant ? 'Multa rescisória' : null,
+              is_paid: payRentWithCaucao,
+              payment_date: payRentWithCaucao ? rescissionDate : null,
+              energy_paid: payRentWithCaucao && hasEnergy,
+              energy_payment_date: payRentWithCaucao && hasEnergy ? rescissionDate : null,
+              notes: `Rescisão — ${proRataResult.periodLabel}${payRentWithCaucao ? ' · Quitado com o caução' : ''}`,
             }, { onConflict: 'contract_id,reference_month', ignoreDuplicates: false })
 
           if (entryErr) throw new Error(`Erro ao gerar lançamento: ${entryErr.message}`)
@@ -316,9 +325,26 @@ export function ContractStatusButton({ contract }: Props) {
                           )}
                         </div>
                         <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
-                          <input type="checkbox" checked={generateProRata} onChange={e => setGenerateProRata(e.target.checked)} className="accent-indigo-600" />
+                          <input
+                            type="checkbox"
+                            checked={generateProRata || payRentWithCaucao}
+                            disabled={payRentWithCaucao}
+                            onChange={e => setGenerateProRata(e.target.checked)}
+                            className="accent-indigo-600 disabled:opacity-50"
+                          />
                           <span className="text-slate-300">Gerar cobrança proporcional</span>
                         </label>
+                        {guaranteeAmount > 0 && (
+                          <label className="flex items-center gap-2 text-sm cursor-pointer mt-1">
+                            <input type="checkbox" checked={payRentWithCaucao} onChange={e => setPayRentWithCaucao(e.target.checked)} className="accent-indigo-600" />
+                            <span className="text-slate-300">Abater do caução (inquilino não paga)</span>
+                          </label>
+                        )}
+                        {payRentWithCaucao && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            A cobrança será gerada já quitada e o valor ({fmt(proRata)}) será descontado do caução.
+                          </p>
+                        )}
                       </>
                     ) : (
                       <p className="text-sm text-emerald-400">Período já coberto — sem valor proporcional a cobrar.</p>
@@ -340,6 +366,12 @@ export function ContractStatusButton({ contract }: Props) {
                       <div className="flex justify-between">
                         <span className="text-slate-400">− Multa rescisória</span>
                         <span className="text-rose-400">−{fmt(penalty)}</span>
+                      </div>
+                    )}
+                    {payRentWithCaucao && proRata > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">− Aluguel proporcional</span>
+                        <span className="text-rose-400">−{fmt(proRata)}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between">
