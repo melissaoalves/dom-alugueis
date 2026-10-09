@@ -78,6 +78,10 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
   const fullyPaid = aluguelPaid && (!hasEnergyBill || energyPaid)
   const partiallyPaid = !fullyPaid && (aluguelPaid || (hasEnergyBill && energyPaid))
 
+  // Quitado com caução não é "a receber": sai do total exibido como valor a cobrar
+  const caucaoAmount = settledByCaucao ? nonEnergyTotal : 0
+  const displayTotal = totalValue - caucaoAmount
+
   const status = fullyPaid
     ? { text: 'Pago', badge: 'bg-emerald-900/40 text-emerald-400', dot: 'bg-emerald-400', border: 'border-emerald-900/50' }
     : partiallyPaid
@@ -226,9 +230,15 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
               <span>{fmt(penalty + interest)}</span>
             </div>
           )}
+          {settledByCaucao && caucaoAmount > 0 && (
+            <div className="flex justify-between text-indigo-300/80">
+              <span>Quitado c/ caução</span>
+              <span>−{fmt(caucaoAmount)}</span>
+            </div>
+          )}
           <div className="flex justify-between border-t border-slate-800 pt-1 font-semibold">
-            <span className="text-slate-300">Total</span>
-            <span className="text-white">{fmt(totalValue)}</span>
+            <span className="text-slate-300">{settledByCaucao ? 'A receber' : 'Total'}</span>
+            <span className="text-white">{fmt(displayTotal)}</span>
           </div>
           <p className="text-xs text-slate-500 text-right">
             Vence {new Date(entry.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}
