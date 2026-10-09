@@ -32,21 +32,11 @@ function entryEnergy(e: any): number {
     : eb === 'consumption' ? (e.energy_amount || 0) : 0
 }
 
-// Valor recebido do lançamento (aluguel+água e energia à parte).
-// "Quitado com caução" fica quitado mas NÃO conta como recebido (o caução já foi receita).
+// Valor recebido do lançamento, contando aluguel+água e energia separadamente
 function entryReceived(e: any): number {
   const energy = entryEnergy(e)
   const nonEnergy = entryTotal(e) - energy
-  const nonEnergyReceived = (e.is_paid && !e.settled_by_caucao) ? nonEnergy : 0
-  return nonEnergyReceived + (e.energy_paid ? energy : 0)
-}
-
-// Valor ainda a receber (aluguel+água quitado com caução não é "a receber" nem "recebido")
-function entryPending(e: any): number {
-  const energy = entryEnergy(e)
-  const nonEnergy = entryTotal(e) - energy
-  const nonEnergyPending = (e.is_paid || e.settled_by_caucao) ? 0 : nonEnergy
-  return nonEnergyPending + (e.energy_paid ? 0 : energy)
+  return (e.is_paid ? nonEnergy : 0) + (e.energy_paid ? energy : 0)
 }
 
 const MONTHS = [
@@ -114,7 +104,7 @@ export function MonthlyEntryList({ initialMonth, initialYear }: Props) {
   const hasEnergyConsumption = entries.some(e => e.contract?.energy_billing_type === 'consumption')
 
   const totalPaid = entries.reduce((s, e) => s + entryReceived(e), 0)
-  const totalPending = entries.reduce((s, e) => s + entryPending(e), 0)
+  const totalPending = entries.reduce((s, e) => s + (entryTotal(e) - entryReceived(e)), 0)
 
   return (
     <div className="space-y-6">

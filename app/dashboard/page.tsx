@@ -19,7 +19,6 @@ function lastDayOf(year: number, month: number) {
 
 interface EntryWithContract {
   is_paid: boolean
-  settled_by_caucao?: boolean | null
   energy_paid?: boolean | null
   due_date: string
   rent_value?: number | null
@@ -51,21 +50,11 @@ function calcTotal(e: EntryWithContract): number {
   return rent + water + energyPart(e) + (e.extra_amount || 0)
 }
 
-// Valor efetivamente recebido: aluguel+água (is_paid) e energia (energy_paid) à parte.
-// "Quitado com caução" fica quitado mas não conta como recebido (o caução já foi receita).
+// Valor efetivamente recebido: aluguel+água (is_paid) e energia (energy_paid) contados à parte
 function receivedPart(e: EntryWithContract): number {
   const energy = energyPart(e)
   const nonEnergy = calcTotal(e) - energy
-  const nonEnergyReceived = (e.is_paid && !e.settled_by_caucao) ? nonEnergy : 0
-  return nonEnergyReceived + (e.energy_paid ? energy : 0)
-}
-
-// Valor ainda a receber (quitado com caução não é "a receber" nem "recebido")
-function pendingPart(e: EntryWithContract): number {
-  const energy = energyPart(e)
-  const nonEnergy = calcTotal(e) - energy
-  const nonEnergyPending = (e.is_paid || e.settled_by_caucao) ? 0 : nonEnergy
-  return nonEnergyPending + (e.energy_paid ? 0 : energy)
+  return (e.is_paid ? nonEnergy : 0) + (e.energy_paid ? energy : 0)
 }
 
 async function DashboardContent({ month, year }: { month: number; year: number }) {
@@ -108,7 +97,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
     supabase.from('profiles').select('first_name').eq('id', user.id).single(),
 
     supabase.from('monthly_entries')
-      .select('is_paid, settled_by_caucao, energy_paid, due_date, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('is_paid, energy_paid, due_date, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .gte('due_date', firstDay)
       .lte('due_date', lastDay),
@@ -140,7 +129,7 @@ async function DashboardContent({ month, year }: { month: number; year: number }
       .order('end_date', { ascending: true }),
 
     supabase.from('monthly_entries')
-      .select('due_date, is_paid, settled_by_caucao, energy_paid, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
+      .select('due_date, is_paid, energy_paid, rent_value, water_amount, energy_amount, extra_amount, contract:contracts(rent_value, water_billing_type, water_value, energy_billing_type, energy_value)')
       .eq('owner_id', user.id)
       .gte('due_date', chartStart)
       .lte('due_date', chartEnd),
@@ -181,9 +170,9 @@ async function DashboardContent({ month, year }: { month: number; year: number }
   const totalRent = entries.reduce((s, e) => s + receivedPart(e), 0)
   const totalCaucao = (monthCaucao ?? []).reduce((s, c) => s + (c.guarantee_amount ?? 0), 0)
   const totalReceived = totalRent + totalCaucao
-  const totalPending = entries.reduce((s, e) => s + pendingPart(e), 0)
-  const pendingCount = entries.filter(e => pendingPart(e) > 0.001).length
-  const paidCount = entries.filter(e => pendingPart(e) <= 0.001).length
+  const totalPending = entries.reduce((s, e) => s + (calcTotal(e) - receivedPart(e)), 0)
+  const pendingCount = entries.filter(e => calcTotal(e) - receivedPart(e) > 0.001).length
+  const paidCount = entries.filter(e => calcTotal(e) - receivedPart(e) <= 0.001).length
   const totalExpenses = (monthExpenses ?? []).reduce((s, e) => s + (e.amount ?? 0), 0)
   const netProfit = totalReceived - totalExpenses
   const vacantProperties = (totalProperties ?? 0) - (activeContracts ?? 0)
