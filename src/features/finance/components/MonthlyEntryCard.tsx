@@ -73,6 +73,7 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
 
   // Pagamento separado: is_paid = aluguel+água; energy_paid = energia
   const aluguelPaid: boolean = entry.is_paid
+  const settledByCaucao: boolean = !!entry.settled_by_caucao  // aluguel+água quitado com caução (não é "recebido")
   const energyPaid: boolean = !!entry.energy_paid
   const fullyPaid = aluguelPaid && (!hasEnergyBill || energyPaid)
   const partiallyPaid = !fullyPaid && (aluguelPaid || (hasEnergyBill && energyPaid))
@@ -87,13 +88,13 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
 
   const fmtDate = (d?: string | null) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—'
 
-  type SaveAction = 'draft' | 'pay-aluguel' | 'unpay-aluguel' | 'pay-energy' | 'unpay-energy'
+  type SaveAction = 'draft' | 'pay-aluguel' | 'settle-aluguel' | 'unpay-aluguel' | 'pay-energy' | 'unpay-energy'
 
   const handleSave = async (action: SaveAction, collapse = true) => {
     setSaving(true)
     try {
       if (action === 'unpay-aluguel') {
-        await updateMonthlyEntry(entry.id, { is_paid: false, payment_date: null })
+        await updateMonthlyEntry(entry.id, { is_paid: false, settled_by_caucao: false, payment_date: null })
       } else if (action === 'unpay-energy') {
         await updateMonthlyEntry(entry.id, { energy_paid: false, energy_payment_date: null })
       } else {
@@ -108,7 +109,8 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
           ...(entry.energy_kwh != null && !energyFromReading && {
             energy_prev_reading: null, energy_curr_reading: null, energy_kwh: null, energy_kwh_rate: null,
           }),
-          ...(action === 'pay-aluguel' && { is_paid: true, payment_date: paymentDate }),
+          ...(action === 'pay-aluguel' && { is_paid: true, settled_by_caucao: false, payment_date: paymentDate }),
+          ...(action === 'settle-aluguel' && { is_paid: true, settled_by_caucao: true, payment_date: paymentDate }),
           ...(action === 'pay-energy' && { energy_paid: true, energy_payment_date: energyPaymentDate }),
         })
       }
@@ -314,7 +316,9 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
               </div>
               {aluguelPaid ? (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-emerald-400">Pago em {fmtDate(entry.payment_date)}</span>
+                  <span className={`text-xs ${settledByCaucao ? 'text-indigo-300' : 'text-emerald-400'}`}>
+                    {settledByCaucao ? 'Quitado c/ caução' : 'Pago'} em {fmtDate(entry.payment_date)}
+                  </span>
                   <button onClick={() => handleSave('unpay-aluguel')} disabled={saving}
                     className="rounded-md border border-slate-700 px-2.5 py-1 text-xs text-slate-400 transition hover:border-rose-900/50 hover:text-rose-400 disabled:opacity-50">
                     Desfazer
@@ -324,6 +328,10 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
                 <div className="flex items-center gap-2">
                   <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
                     className="h-8 rounded-md border border-slate-800 bg-slate-900 px-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-600" />
+                  <button onClick={() => handleSave('settle-aluguel')} disabled={saving} title="Quitar com o caução (não conta como recebido)"
+                    className="rounded-md border border-indigo-800 px-2.5 py-1.5 text-xs font-medium text-indigo-300 transition hover:bg-indigo-900/30 disabled:opacity-50">
+                    Caução
+                  </button>
                   <button onClick={() => handleSave('pay-aluguel')} disabled={saving}
                     className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-600 disabled:opacity-50">
                     Marcar pago
@@ -366,7 +374,9 @@ export function MonthlyEntryCard({ entry, onUpdate }: Props) {
       {!expanded && (aluguelPaid || energyPaid || entry.notes) && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-t border-slate-800 px-4 py-2 text-xs text-slate-500">
           {aluguelPaid && (
-            <span>{hasEnergyBill ? 'Aluguel' : 'Pago'} {hasEnergyBill ? 'pago ' : ''}em {fmtDate(entry.payment_date)}</span>
+            <span className={settledByCaucao ? 'text-indigo-300/80' : undefined}>
+              {hasEnergyBill ? 'Aluguel' : 'Mensalidade'} {settledByCaucao ? 'quitado c/ caução' : 'pago'} em {fmtDate(entry.payment_date)}
+            </span>
           )}
           {hasEnergyBill && energyPaid && <span>Energia paga em {fmtDate(entry.energy_payment_date)}</span>}
           {hasEnergyBill && aluguelPaid && !energyPaid && <span className="text-amber-500/80">Energia pendente</span>}
