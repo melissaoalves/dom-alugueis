@@ -96,12 +96,8 @@ export function ContractStatusButton({ contract }: Props) {
   const [loadingLastPayment, setLoadingLastPayment] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastPaidRefMonth, setLastPaidRefMonth] = useState<string | null>(null)
-  // Aluguel em aberto (SÓ o aluguel — água e energia não entram) das mensalidades já lançadas.
-  // clearIds: ao zerar o aluguel, nada mais fica em aberto no lançamento (sem água/extra) → marca pago.
-  // keepIds: ainda resta água/extra a cobrar → zera só o aluguel e mantém o lançamento em aberto.
-  const [outstanding, setOutstanding] = useState<{ rentTotal: number; clearIds: string[]; keepIds: string[] }>(
-    { rentTotal: 0, clearIds: [], keepIds: [] }
-  )
+  // Aluguel + água em aberto (energia fica à parte) das mensalidades já lançadas deste contrato.
+  const [outstanding, setOutstanding] = useState<{ total: number; ids: string[] }>({ total: 0, ids: [] })
 
   const today = (() => {
     const d = new Date()
@@ -142,8 +138,8 @@ export function ContractStatusButton({ contract }: Props) {
   const proRataEnergy = proRataEnergyResult?.amount ?? 0
   const proRata = proRataRent + proRataWater + proRataEnergy
 
-  // Aluguel (sem água/energia) que o caução pode cobrir: em aberto + proporcional da rescisão
-  const rentToCover = Math.round((outstanding.rentTotal + proRataRent) * 100) / 100
+  // Aluguel + água que o caução pode cobrir (energia à parte): em aberto + proporcional da rescisão
+  const rentToCover = Math.round((outstanding.total + proRataRent + proRataWater) * 100) / 100
 
   const caucaoDeductions = (applyPenaltyToCaucao ? penalty : 0) + damages + (payRentWithCaucao ? rentToCover : 0)
   const caucaoBalance = guaranteeAmount - caucaoDeductions
@@ -170,26 +166,24 @@ export function ContractStatusButton({ contract }: Props) {
       ])
       setLastPaidRefMonth(lastPaid?.reference_month ?? null)
 
-      // Só o ALUGUEL ainda em aberto (água/energia o inquilino continua pagando).
-      // is_paid cobre aluguel+água; se false, o aluguel está em aberto.
+      // Aluguel + água em aberto (energia à parte, via energy_paid).
+      // is_paid cobre aluguel+água; se false, esse pacote está em aberto.
       const wb = contract.water_billing_type ?? 'not_included'
-      let rentTotal = 0
-      const clearIds: string[] = []
-      const keepIds: string[] = []
+      let total = 0
+      const ids: string[] = []
       for (const e of entries ?? []) {
         if (e.is_paid) continue
         const rent = e.rent_value ?? contract.rent_value ?? 0
-        if (rent <= 0) continue
         const water = wb === 'fixed' ? (e.water_amount || contract.water_value || 0) : wb === 'consumption' ? (e.water_amount || 0) : 0
-        const extra = e.extra_amount || 0
-        rentTotal += rent
-        if (water + extra <= 0) clearIds.push(e.id)
-        else keepIds.push(e.id)
+        const owed = rent + water + (e.extra_amount || 0)
+        if (owed <= 0) continue
+        total += owed
+        ids.push(e.id)
       }
-      setOutstanding({ rentTotal: Math.round(rentTotal * 100) / 100, clearIds, keepIds })
+      setOutstanding({ total: Math.round(total * 100) / 100, ids })
     } catch {
       setLastPaidRefMonth(null)
-      setOutstanding({ rentTotal: 0, clearIds: [], keepIds: [] })
+      setOutstanding({ total: 0, ids: [] })
     } finally {
       setLoadingLastPayment(false)
     }
@@ -217,10 +211,6 @@ export function ContractStatusButton({ contract }: Props) {
           // Ao abater do caução, a multa não é cobrada do inquilino neste lançamento
           const chargePenaltyToTenant = penalty > 0 && !applyPenaltyToCaucao && !payRentWithCaucao
           const hasEnergy = proRataEnergy > 0
-          // Caução cobre só o aluguel: o proporcional de água/energia continua em aberto
-          const rentCovered = payRentWithCaucao
-          const restOwed = proRataWater > 0 || (chargePenaltyToTenant && penalty > 0)
-          const proRataPaid = rentCovered && !restOwed && !hasEnergy
 
           const { error: entryErr } = await supabase
             .from('monthly_entries')
@@ -230,38 +220,30 @@ export function ContractStatusButton({ contract }: Props) {
               owner_id: user.id,
               reference_month: refMonth,
               due_date: rescissionDate,
-              rent_value: rentCovered ? 0 : proRataRent,
+              rent_value: proRataRent,
               water_amount: proRataWater > 0 ? proRataWater : null,
               energy_amount: hasEnergy ? proRataEnergy : null,
               extra_amount: chargePenaltyToTenant ? penalty : null,
               extra_description: chargePenaltyToTenant ? 'Multa rescisória' : null,
-              is_paid: rentCovered ? !restOwed : false,
-              payment_date: rentCovered && !restOwed ? rescissionDate : null,
+              // Caução cobre aluguel + água; energia fica à parte (energy_paid)
+              is_paid: payRentWithCaucao,
+              payment_date: payRentWithCaucao ? rescissionDate : null,
               energy_paid: false,
               energy_payment_date: null,
-              notes: `Rescisão — ${proRataResult.periodLabel}${rentCovered ? ' · Aluguel quitado com o caução' : ''}`,
+              notes: `Rescisão — ${proRataResult.periodLabel}${payRentWithCaucao ? ' · Aluguel/água quitado com o caução' : ''}`,
             }, { onConflict: 'contract_id,reference_month', ignoreDuplicates: false })
 
           if (entryErr) throw new Error(`Erro ao gerar lançamento: ${entryErr.message}`)
         }
       }
 
-      // Abate do caução só o ALUGUEL das mensalidades em aberto (água/energia seguem a cobrar)
-      if (payRentWithCaucao) {
-        if (outstanding.clearIds.length > 0) {
-          const { error: e1 } = await supabase
-            .from('monthly_entries')
-            .update({ rent_value: 0, is_paid: true, payment_date: rescissionDate, notes: 'Aluguel quitado com o caução' })
-            .in('id', outstanding.clearIds)
-          if (e1) throw new Error(`Erro ao quitar aluguel em aberto: ${e1.message}`)
-        }
-        if (outstanding.keepIds.length > 0) {
-          const { error: e2 } = await supabase
-            .from('monthly_entries')
-            .update({ rent_value: 0, notes: 'Aluguel quitado com o caução · água/energia a cobrar' })
-            .in('id', outstanding.keepIds)
-          if (e2) throw new Error(`Erro ao quitar aluguel em aberto: ${e2.message}`)
-        }
+      // Abate do caução o aluguel + água das mensalidades em aberto (energia segue a cobrar)
+      if (payRentWithCaucao && outstanding.ids.length > 0) {
+        const { error: settleErr } = await supabase
+          .from('monthly_entries')
+          .update({ is_paid: true, payment_date: rescissionDate, notes: 'Aluguel/água quitado com o caução' })
+          .in('id', outstanding.ids)
+        if (settleErr) throw new Error(`Erro ao quitar aluguel em aberto: ${settleErr.message}`)
       }
 
       setShowModal(false)
@@ -396,22 +378,22 @@ export function ContractStatusButton({ contract }: Props) {
                       <p className="text-sm text-emerald-400">Período já coberto — sem valor proporcional a cobrar.</p>
                     )}
 
-                    {/* Aluguel em aberto + opção de abater do caução (só o aluguel) */}
-                    {outstanding.rentTotal > 0 && (
+                    {/* Aluguel + água em aberto + opção de abater do caução */}
+                    {outstanding.total > 0 && (
                       <div className="flex justify-between border-t border-slate-800 pt-2 text-sm">
-                        <span className="text-slate-400">Aluguel em aberto</span>
-                        <span className="font-semibold text-white">{fmt(outstanding.rentTotal)}</span>
+                        <span className="text-slate-400">Aluguel + água em aberto</span>
+                        <span className="font-semibold text-white">{fmt(outstanding.total)}</span>
                       </div>
                     )}
                     {guaranteeAmount > 0 && rentToCover > 0 && (
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={payRentWithCaucao} onChange={e => setPayRentWithCaucao(e.target.checked)} className="accent-indigo-600" />
-                        <span className="text-slate-300">Abater o aluguel do caução ({fmt(rentToCover)})</span>
+                        <span className="text-slate-300">Abater aluguel + água do caução ({fmt(rentToCover)})</span>
                       </label>
                     )}
                     {payRentWithCaucao && (
                       <p className="text-xs text-slate-500">
-                        Só o aluguel ({fmt(rentToCover)}) é descontado do caução. Água e energia o inquilino continua pagando normalmente.
+                        Aluguel e água ({fmt(rentToCover)}) são descontados do caução. A energia o inquilino continua pagando.
                       </p>
                     )}
                   </>
@@ -435,7 +417,7 @@ export function ContractStatusButton({ contract }: Props) {
                     )}
                     {payRentWithCaucao && rentToCover > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-slate-400">− Aluguel do inquilino</span>
+                        <span className="text-slate-400">− Aluguel + água</span>
                         <span className="text-rose-400">−{fmt(rentToCover)}</span>
                       </div>
                     )}
