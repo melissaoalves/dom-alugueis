@@ -52,7 +52,7 @@ src/
   - Se `end_date_day <= due_day`: sem cobrança extra.
   - Proporcional = `(dias_extras / dias_no_mês) × rent_value`.
 - O `ContractStatusButton` cria o lançamento pro-rata com `rent_value`, `water_amount`, `energy_amount` proporcionais separados.
-- **Abater do caução**: no modal de rescisão, a opção "Abater do caução (inquilino não paga)" desconta o valor proporcional (`proRata`) do caução e gera a cobrança já **quitada** (`is_paid`/`energy_paid` true, com nota "Quitado com o caução"). Ao marcá-la, a multa não é cobrada do inquilino nesse lançamento (vai pelo caução, se aplicável).
+- **Abater do caução**: no modal de rescisão, a opção "Abater do caução — inquilino não paga" cobre o aluguel que o inquilino deve (= mensalidades já lançadas em aberto + proporcional da rescisão) descontando do caução. Ao abrir o modal, busca todas as mensalidades do contrato e soma o que falta pagar (aluguel+água via `is_paid`, energia via `energy_paid`). Ao confirmar: marca essas mensalidades como pagas (`is_paid`/`energy_paid`, data = rescisão), gera o proporcional já quitado (se houver) e desconta o total do caução. A multa não é cobrada do inquilino nesse lançamento. A opção aparece sempre que houver aluguel a cobrir e caução > 0 (inclusive quando não há proporcional).
 
 ### 4.4. Cobrança via PIX
 - `contracts.pix_key_guarantee` armazena a chave Pix usada para cobrar o inquilino daquele contrato.
